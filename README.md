@@ -8,6 +8,8 @@ The goal is to ensure changes to the library don't introduce breaking changes to
 
 Use this sketch as an augmentation to the existing native Google tests run with PlatformIO for the DCCEXProtocol library.
 
+**Warning!** The code in this repository was started by a human, but in the interests of saving time was completed with AI assistance, so don't assume everything here is good and correct.
+
 ## Installation
 
 This sketch uses the DCCEXProtocol library (version 1.4.0 and later) and should work with any DCC-EX EX-CommandStation running version 5.4.0 or later.
