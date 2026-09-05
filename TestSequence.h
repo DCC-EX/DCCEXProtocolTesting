@@ -140,7 +140,6 @@ static bool connectToCommandStation() {
   Serial.println("Requesting the server version and object lists...");
   csClient.refreshAllLists();
   csClient.requestServerVersion();
-  csClient.getLists();
   Serial.print("Waiting up to ");
   Serial.print(CONNECT_TIMEOUT / 1000);
   Serial.println(" seconds for the command station to respond...");
@@ -152,6 +151,7 @@ static bool connectToCommandStation() {
       Serial.println(">>> EX-CommandStation_Automation/myAutomation.h, then retry with <C>.");
       return false;
     }
+    csClient.getLists(); // gated: requests the next list once the previous one is in
     csClient.check();
   }
   printConnectionSummary();
@@ -182,6 +182,25 @@ static void waitForExpectations(unsigned long windowMs = expectationWindowMs) {
   }
 }
 
+/**
+ * @brief Pump csClient.check() and cascade csClient.getLists() until all lists are received
+ *
+ * @details getLists() is gated in the library: each call requests only the next list after the previous one has
+ * arrived, so it must be called repeatedly in the wait loop. Use this instead of a single getLists() call.
+ * @param windowMs Observation window in milliseconds (defaults to CONNECT_TIMEOUT)
+ */
+static void waitForAllLists(unsigned long windowMs = CONNECT_TIMEOUT) {
+  unsigned long start = millis();
+  while (!csClient.receivedLists()) {
+    if (millis() - start > windowMs) {
+      Serial.println("ERROR: Timed out waiting for the object lists");
+      return;
+    }
+    csClient.getLists(); // gated: requests the next list once the previous one is in
+    csClient.check();
+  }
+}
+
 // --------------------------------------------------------------------------
 // Local (DUT driven) test bodies, commenced with <T id>
 // --------------------------------------------------------------------------
@@ -195,12 +214,11 @@ static void testVersionLists() {
   csListener.expectServerVersion();
   waitForExpectations(CONNECT_TIMEOUT);
   Serial.println("Requesting all object lists (getLists())");
-  csClient.getLists();
   csListener.expectRosterList();
   csListener.expectTurnoutList();
   csListener.expectRouteList();
   csListener.expectTurntableList();
-  waitForExpectations(CONNECT_TIMEOUT);
+  waitForAllLists();
   Serial.print("Roster count: ");
   Serial.println(csClient.getRosterCount());
   Serial.print("Turnout count: ");
@@ -211,12 +229,11 @@ static void testVersionLists() {
   Serial.println(csClient.getTurntableCount());
   Serial.println("Refreshing all lists (refreshAllLists() then getLists())");
   csClient.refreshAllLists();
-  csClient.getLists();
   csListener.expectRosterList();
   csListener.expectTurnoutList();
   csListener.expectRouteList();
   csListener.expectTurntableList();
-  waitForExpectations(CONNECT_TIMEOUT);
+  waitForAllLists();
   Serial.println("Lists after refresh:");
   printRoster();
   printTurnouts();
@@ -649,12 +666,11 @@ static void testMiscellaneous() {
   testDelay(1000);
   Serial.println("Refreshing all lists (roster, turnouts, routes, turntables)");
   csClient.refreshAllLists();
-  csClient.getLists();
   csListener.expectRosterList();
   csListener.expectTurnoutList();
   csListener.expectRouteList();
   csListener.expectTurntableList();
-  waitForExpectations(CONNECT_TIMEOUT);
+  waitForAllLists();
   Serial.print("receivedLists() after refresh=");
   Serial.println(csClient.receivedLists() ? "true" : "false");
   Serial.println("Lists after refresh:");
