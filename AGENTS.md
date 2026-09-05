@@ -35,7 +35,7 @@ Two test classes:
 - `localTests[]` and `routeTests[]` in `TestSequence.h` are the **single source of truth** for menus, ids and dispatch.
 - Adding a test = add one registry row + implement/reference the test function. **Never** hardcode menu text or add a
   dispatch `switch` mirroring the registry.
-- Route observation is driven by the `RouteTest.observeMs` window. Placeholder stubs print "not yet migrated".
+- Route observation is driven by the `RouteTest.observeMs` window and the expectations set by the route test's body
 - `<C>` is a connect command, not a test: it never appears in the test registers, prints no TEST COMPLETE banner, and
   the `myAutomation.h` reminder appears only in its output.
 
@@ -47,8 +47,10 @@ Two test classes:
 
 ## Validation engine
 
-Tests use typed expectations set on the listener (e.g. `csListener.expectTurnoutAction(100, true)`) plus a single
-observation window per test that pumps `csClient.check()` until all expectations are matched. Rule for each event:
+Tests use typed expectations set on the listener (e.g. `csListener.expectTurnoutAction(100, true)`) plus observation
+windows that pump `csClient.check()` until all expectations are matched. A local test may have several
+expectation->operate->window phases; each `waitForExpectations()` replaces raw `testDelay()` waits for that phase.
+Route tests set their expectations up front and use one window (`RouteTest.observeMs`). Rule for each event:
 
 - No expectation for that callback -> print normally, ignore.
 - Expectation but **different object** (e.g. turnout 101 while expecting 100) -> print normally, ignore (never fails).
