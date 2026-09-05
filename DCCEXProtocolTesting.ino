@@ -11,6 +11,7 @@
  * observe it receiving the various object lists and then broadcasts/responses. Testing is menu driven and operator
  * assisted - the EX-CommandStation console should also be monitored. Tests are commenced by entering a command in
  * DCC-EX protocol style on the serial console of the device under test:
+ *  - <C> connects to the EX-CommandStation manually (requests the server version and object lists)
  *  - <R id> starts a ROUTE on the command station via startRoute() (the command station drives the activity)
  *  - <T id> runs a LOCAL test on the device under test (the DUT drives activity via the library API)
  *
@@ -20,7 +21,7 @@
  *  - Globals.h      - extern declarations for the global objects
  *  - PrintHelpers.h - enum renderers and list printers
  *  - TestListener.h - the delegate handling all DCCEXProtocolDelegate callbacks
- *  - Console.h      - interactive serial console used to enter <T id> / <R id> commands
+ *  - Console.h      - interactive serial console used to enter <C> / <T id> / <R id> commands
  *  - TestSequence.h - the menu driven operator assisted test suite
  *
  * @author peteGSX
@@ -50,10 +51,10 @@
 #endif
 
 // Test suite helper headers
+#include "Console.h"
 #include "Globals.h"
 #include "PrintHelpers.h"
 #include "TestListener.h"
-#include "Console.h"
 #include "TestSequence.h"
 
 /*
@@ -89,34 +90,16 @@ void setup() {
 #if defined(ARDUINO_ARCH_STM32) // If using Bluepill, use Serial1 for the CS connection
   Serial1.begin(115200);
   csClient.connect(&Serial1);
-#elif defined(ARDUINO_ARCH_ESP32) // If using ESP32, use WiFi for the CS connection
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-    delay(1000);
-
-  Serial.print("WiFi connected with IP ");
-  Serial.println(WiFi.localIP());
-
-  Serial.println("Connecting to command station over WiFi");
-  if (!wifiClient.connect(serverAddress, serverPort)) {
-    Serial.println("Connection failed");
-    while (1)
-      delay(1000);
-  }
-  Serial.println("Connected to command station");
-  csClient.connect(&wifiClient);
 #endif
-
-  csClient.requestServerVersion();
+  // No connection is made at boot - the operator connects to the EX-CommandStation manually with <C>
+  // (see connectToCommandStation() in TestSequence.h). For ESP32 this also brings up the WiFi link.
 }
 
 void loop() {
   csClient.check();
 
-  // Request the object lists until they are received, then start the menu driven test console once
-  if (!csClient.receivedLists()) {
-    csClient.getLists();
-  } else if (!consoleStarted) {
+  // Start the menu driven test console immediately. The EX-CommandStation connection is established later with <C>.
+  if (!consoleStarted) {
     consoleStarted = true;
     runTestConsole();
   }

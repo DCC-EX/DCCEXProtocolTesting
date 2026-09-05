@@ -1,6 +1,6 @@
 /**
  * @file TestSequence.h
- * @brief Menu driven test sequence for the DCCEXProtocol library.
+ * @brief Menu driven operator assisted test suite for the DCCEXProtocol library.
  *
  * @details This sketch is designed for operator assisted testing on physical hardware. The device under test (DUT)
  * connects to an EX-CommandStation and displays a menu of available tests.
@@ -11,18 +11,30 @@
  *  - <T id> runs a LOCAL test on the DUT - the DUT drives activity via the DCCEXProtocol library API and monitors
  *    the resulting responses/broadcasts
  *
+ * Test ids are sequential and independent of the underlying command station route ids. The localTests[] and
+ * routeTests[] arrays below are the single source of truth for the menus, validation and dispatch - to add a test
+ * add one row to the relevant array and implement the referenced function. Do not hardcode menu text or dispatch
+ * logic elsewhere.
+ *
  * After each test completes, the list of available tests is displayed again.
  *
- * The operator should monitor BOTH the serial console of the device under test (to verify the delegate callbacks print
- * the expected output) AND the serial console of the EX-CommandStation (to verify route PRINT markers and command
- * responses).
+ * The operator should monitor BOTH the serial console of the device under test (to verify the delegate callbacks
+ * print the expected output) AND the serial console of the EX-CommandStation (to verify route PRINT markers and
+ * command responses).
+ *
+ * @note Test bodies are currently placeholders (menu preview phase). See AGENTS.md for the project conventions and
+ * the validation engine that will replace the placeholder bodies.
  */
 
 #ifndef TEST_SEQUENCE_H
 #define TEST_SEQUENCE_H
 
-#include "TestListener.h"
 #include "Console.h"
+#include "TestListener.h"
+
+#ifndef CONNECT_TIMEOUT
+#define CONNECT_TIMEOUT 10000 // Default maximum time in ms to wait for the command station to respond to <C>
+#endif
 
 /**
  * @brief Wait the specified time while processing inbound traffic and printing the optional alive heartbeat
@@ -51,6 +63,18 @@ static void testBanner(const char *name) {
   Serial.print("TEST: ");
   Serial.println(name);
   Serial.println("============================================================");
+}
+
+/**
+ * @brief Placeholder body used while the menu structure is being reviewed
+ * @param testName Name of the test that has not been migrated yet
+ */
+static void notMigrated(const char *testName) {
+  testBanner(testName);
+  Serial.println();
+  Serial.println("NOTE: The body of this test has not been migrated yet.");
+  Serial.println("This is a placeholder so the menu structure can be reviewed.");
+  Serial.println();
 }
 
 /**
@@ -89,409 +113,254 @@ static void printConnectionSummary() {
   testDelay(2000);
 }
 
-// --------------------------------------------------------------------------
-// Local (DUT driven) tests, commenced with <T id>
-// --------------------------------------------------------------------------
-
-// T 704 - Track power
-static void testTrackPower() {
-  testBanner("Track Power (local)");
-  Serial.println("Turning all track power ON (<1>)");
-  csClient.powerOn();
-  testDelay(3000);
-  Serial.println("Turning all track power OFF (<0>)");
-  csClient.powerOff();
-  testDelay(3000);
-  Serial.println("Turning all track power ON again (<1>)");
-  csClient.powerOn();
-  testDelay(3000);
-  Serial.println("Turning MAIN track OFF then ON (<0 MAIN>/<1 MAIN>)");
-  csClient.powerMainOff();
-  testDelay(3000);
-  csClient.powerMainOn();
-  testDelay(3000);
-  Serial.println("Turning PROG track OFF then ON (<0 PROG>/<1 PROG>)");
-  csClient.powerProgOff();
-  testDelay(3000);
-  csClient.powerProgOn();
-  testDelay(3000);
-}
-
-// T 710 - Track types
-static void testTrackTypes() {
-  testBanner("Track Types (local)");
-  Serial.println("NOTE: These commands change the actual track modes on the command station");
-  Serial.println("Setting Track A to MAIN");
-  csClient.setTrackType('A', MAIN, 0);
-  testDelay(3000);
-  Serial.println("Setting Track A to PROG");
-  csClient.setTrackType('A', PROG, 0);
-  testDelay(3000);
-  Serial.println("Setting Track A to DC address 5");
-  csClient.setTrackType('A', DC, 5);
-  testDelay(3000);
-  Serial.println("Setting Track A to DCX address 6");
-  csClient.setTrackType('A', DCX, 6);
-  testDelay(3000);
-  Serial.println("Restoring Track A to MAIN");
-  csClient.setTrackType('A', MAIN, 0);
-  testDelay(3000);
-}
-
-// T 711 - Track currents
-static void testTrackCurrents() {
-  testBanner("Track Currents (local)");
-  Serial.println("Requesting track current gauges (<jG>)");
-  csClient.requestTrackCurrentGauges();
-  testDelay(4000);
-  Serial.println("Requesting track currents (<jI>)");
-  csClient.requestTrackCurrents();
-  testDelay(4000);
-}
-
-// T 700 - Roster loco control
-static void testRosterLocoControl() {
-  testBanner("Roster Loco Control (local)");
-  Loco *loco2010 = csClient.findLocoInRoster(2010);
-  if (loco2010) {
-    Serial.println("Testing with roster loco 2010");
-    printLoco(loco2010);
-    Serial.println("Set throttle to speed 30 Forward (<t 2010 30 1>)");
-    csClient.setThrottle(loco2010, 30, Forward);
-    testDelay(3000);
-    Serial.println("Function 0 ON");
-    csClient.functionOn(loco2010, 0);
-    testDelay(2000);
-    Serial.println("Function 0 OFF");
-    csClient.functionOff(loco2010, 0);
-    testDelay(2000);
-    Serial.println("Set throttle to speed 60 Reverse (<t 2010 60 0>)");
-    csClient.setThrottle(loco2010, 60, Reverse);
-    testDelay(3000);
-    Serial.println("Stopping loco 2010 (<t 2010 0 1>)");
-    csClient.setThrottle(loco2010, 0, Forward);
-    testDelay(3000);
-    Serial.println("Requesting a loco update (<t 2010>)");
-    csClient.requestLocoUpdate(2010);
-    testDelay(3000);
-    Serial.print("isFunctionOn(loco2010, 0)=");
-    Serial.println(csClient.isFunctionOn(loco2010, 0) ? "true" : "false");
-  } else {
-    Serial.println("ERROR: Loco 2010 not found in roster");
+/**
+ * @brief Connect to the EX-CommandStation manually with <C>
+ *
+ * @details Brings up the physical link (ESP32 WiFi only - Serial1 is opened in setup() on the STM32), requests the
+ * server version and all object lists, then waits up to CONNECT_TIMEOUT milliseconds for them to be received. On
+ * success the connection summary and a checklist of the objects expected from EX-CommandStation_Automation/
+ * myAutomation.h are printed. Can be repeated at any time to reconnect.
+ * @return true if the link came up and all lists were received
+ */
+static bool connectToCommandStation() {
+  testBanner("Connect to EX-CommandStation");
+#if defined(ARDUINO_ARCH_ESP32)
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Connecting to WiFi...");
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      csClient.check();
+      delay(500);
+    }
+    Serial.print("WiFi connected with IP ");
+    Serial.println(WiFi.localIP());
   }
-  testDelay(1000);
-}
-
-// T 701 - Local (non-roster) loco control
-static void testLocalLocoControl() {
-  testBanner("Local (non-roster) Loco Control (local)");
-  Serial.println("Creating a local loco with address 9999");
-  Loco *localLoco = new Loco(9999, LocoSourceEntry);
-  localLoco->setName("Local 9999");
-  printLocalLocos();
-  printLoco(localLoco);
-  Serial.println("Set throttle to speed 25 Forward (<t 9999 25 1>)");
-  csClient.setThrottle(localLoco, 25, Forward);
-  testDelay(3000);
-  Serial.println("Function 1 ON");
-  csClient.functionOn(localLoco, 1);
-  testDelay(2000);
-  Serial.println("Stopping loco 9999 (<t 9999 0 1>)");
-  csClient.setThrottle(localLoco, 0, Forward);
-  testDelay(3000);
-  Serial.println("Deleting the local loco to test list cleanup");
-  delete localLoco;
-  testDelay(1000);
-  printLocalLocos();
-}
-
-// T 712 - Momentum
-static void testMomentum() {
-  testBanner("Momentum (local)");
-  Serial.println("NOTE: No delegate callbacks are expected for these commands, check the CS console for responses");
-  Serial.println("Setting momentum algorithm to Linear");
-  csClient.setMomentumAlgorithm(Linear);
-  testDelay(2000);
-  Serial.println("Setting default momentum to 10");
-  csClient.setDefaultMomentum(10);
-  testDelay(2000);
-  Serial.println("Setting momentum for address 2010 to 20");
-  csClient.setMomentum(2010, 20);
-  testDelay(2000);
-  Serial.println("Setting accelerating/braking momentum for address 2010 to 10/5");
-  csClient.setMomentum(2010, 10, 5);
-  testDelay(2000);
-  Loco *loco2014 = csClient.findLocoInRoster(2014);
-  if (loco2014) {
-    Serial.println("Setting momentum for Loco 2014 to 15");
-    csClient.setMomentum(loco2014, 15);
-    testDelay(2000);
+  if (!wifiClient.connected()) {
+    Serial.println("Connecting to the command station over WiFi...");
+    if (!wifiClient.connect(serverAddress, serverPort)) {
+      Serial.println("ERROR: Connection to the command station failed");
+      Serial.println(
+          ">>> Check the command station is powered and is running EX-CommandStation_Automation/myAutomation.h,");
+      Serial.println(">>> and that serverAddress/serverPort in myWiFi.h are correct, then retry with <C>.");
+      return false;
+    }
+    csClient.connect(&wifiClient);
   }
-}
-
-// T 702 - Turnout control
-static void testTurnoutControl() {
-  testBanner("Turnout Control (local)");
-  Serial.println("Throwing turnout 100 (<T 100 1>)");
-  csClient.throwTurnout(100);
-  testDelay(3000);
-  Serial.println("Closing turnout 100 (<T 100 0>)");
-  csClient.closeTurnout(100);
-  testDelay(3000);
-  Serial.println("Toggling turnout 101 (<T 101 -1>)");
-  csClient.toggleTurnout(101);
-  testDelay(3000);
-  Serial.println("Toggling turnout 101 again");
-  csClient.toggleTurnout(101);
-  testDelay(3000);
-  Serial.println("Throwing turnout 102");
-  csClient.throwTurnout(102);
-  testDelay(3000);
-  Turnout *turnout100 = csClient.getTurnoutById(100);
-  if (turnout100) {
-    Serial.print("getTurnoutById(100) state=");
-    Serial.println(turnout100->getThrown() ? "Thrown" : "Closed");
-  }
-}
-
-// T 703 - DCC turntable control
-static void testTurntableControl() {
-  testBanner("DCC Turntable Control (local)");
-  Serial.println("Rotating turntable 2 to position 2 (<I 2 2>)");
-  csClient.rotateTurntable(2, 2);
-  testDelay(5000);
-  Serial.println("Rotating turntable 2 to position 4 (<I 2 4>)");
-  csClient.rotateTurntable(2, 4);
-  testDelay(5000);
-  Serial.println("Rotating turntable 2 to home position 0 (<I 2 0>)");
-  csClient.rotateTurntable(2, 0);
-  testDelay(5000);
-  Serial.println("Rotating turntable 4 to position 1 (<I 4 1>)");
-  csClient.rotateTurntable(4, 1);
-  testDelay(5000);
-  Serial.println("Rotating turntable 4 to position 3 (<I 4 3>)");
-  csClient.rotateTurntable(4, 3);
-  testDelay(5000);
-  Turntable *turntable2 = csClient.getTurntableById(2);
-  if (turntable2) {
-    Serial.print("getTurntableById(2) index=");
-    Serial.println(turntable2->getIndex());
-  }
-}
-
-// T 713 - DCC accessories
-static void testAccessories() {
-  testBanner("DCC Accessories (local)");
-  Serial.println("NOTE: No delegate callbacks are expected for these commands, check the CS console for responses");
-  Serial.println("Activating accessory 10 subaddress 1 (<A 10 1 1>)");
-  csClient.activateAccessory(10, 1);
-  testDelay(2000);
-  Serial.println("Deactivating accessory 10 subaddress 1 (<A 10 1 0>)");
-  csClient.deactivateAccessory(10, 1);
-  testDelay(2000);
-  Serial.println("Activating linear accessory 500 (<a 500 1>)");
-  csClient.activateLinearAccessory(500);
-  testDelay(2000);
-  Serial.println("Deactivating linear accessory 500 (<a 500 0>)");
-  csClient.deactivateLinearAccessory(500);
-  testDelay(2000);
-}
-
-// T 714 - CV programming
-static void testCVProgramming() {
-  testBanner("CV Programming (local)");
-  Serial.println("WARNING: This command operates on the programming track and may affect a decoder if one is connected");
-  Serial.println(">>> Ensure a loco is on the PROG track (or accept failures)");
-  testDelay(15000);
-  Serial.println("Reading loco address from the programming track (<R>)");
-  csClient.readLoco();
-  testDelay(10000);
-}
-
-// T 715 - Fast clock
-static void testFastClock() {
-  testBanner("Fast Clock (local)");
-  Serial.println("Setting fast clock to 7:00am with speed factor 4");
-  csClient.setFastClock(420, 4);
-  testDelay(3000);
-  Serial.println("Requesting the fast clock time (<jC>)");
-  csClient.requestFastClockTime();
-  testDelay(3000);
-}
-
-// T 500 - JMRI sensor list request
-static void testJMRISensorList() {
-  testBanner("JMRI Sensors (local)");
-  Serial.println("Requesting the JMRI sensor list (<Q>)");
-  csClient.requestJMRISensorList();
-  testDelay(5000);
-}
-
-// T 706 - Command station consists
-static void testConsistOps() {
-  testBanner("Command Station Consists (local)");
-  Serial.println("Creating a CSConsist with lead loco 2010");
-  CSConsist *csConsist = csClient.createCSConsist(2010);
-  if (csConsist) {
-    Serial.println("Adding member 2014 (reversed)");
-    csClient.addCSConsistMember(csConsist, 2014, true);
-    testDelay(2000);
-    Serial.println("Adding member 2016");
-    csClient.addCSConsistMember(csConsist, 2016);
-    testDelay(3000);
-    printCSConsists();
-    Serial.println("Setting consist throttle to speed 20 Forward");
-    csClient.setThrottle(csConsist, 20, Forward);
-    testDelay(3000);
-    Serial.println("Function 0 ON for the consist");
-    csClient.functionOn(csConsist, 0);
-    testDelay(2000);
-    Serial.println("Function 0 OFF for the consist");
-    csClient.functionOff(csConsist, 0);
-    testDelay(2000);
-    Serial.println("Stopping the consist");
-    csClient.setThrottle(csConsist, 0, Forward);
-    testDelay(3000);
-    Serial.println("Removing member 2016");
-    csClient.removeCSConsistMember(csConsist, 2016);
-    testDelay(3000);
-    printCSConsists();
-    Serial.println("Deleting the CSConsist");
-    csClient.deleteCSConsist(csConsist);
-    testDelay(3000);
-    Serial.println("Clearing all CSConsists");
-    csClient.clearCSConsists();
-    testDelay(1000);
-  } else {
-    Serial.println("ERROR: Could not create CSConsist");
-  }
-  Serial.println("Requesting the list of CSConsists from the CS (<^>)");
-  csClient.requestCSConsists();
-  testDelay(3000);
-}
-
-// T 301 - Automation handoff
-static void testAutomationHandoff() {
-  testBanner("Automation Handoff (local)");
-  Serial.println("Handing off loco 3001 to AUTOMATION 301 (< / START 3001 301>)");
-  csClient.handOffLoco(3001, 301);
-  testDelay(15000);
-}
-
-// T 708 - Delayed activity with pause/resume
-static void testDelayedActivity() {
-  testBanner("Delayed Activity with Pause/Resume (local)");
-  Serial.println("Starting ROUTE 708 (Delayed Activity) via startRoute() (< / START 708>)");
-  csClient.startRoute(708);
-  testDelay(5000);
-  Serial.println("Pausing all routes (< / PAUSE>) - verify the route stops on the CS console");
-  csClient.pauseRoutes();
-  testDelay(5000);
-  Serial.println("Resuming all routes (< / RESUME>) - verify the route continues on the CS console");
-  csClient.resumeRoutes();
-  testDelay(20000);
-  Serial.println(">>> Route 708 should be complete on the CS console now");
-}
-
-// T 716 - List refresh and miscellaneous
-static void testListRefreshMisc() {
-  testBanner("List Refresh and Miscellaneous (local)");
-  Serial.println("Clearing local locos (clearLocalLocos())");
-  csClient.clearLocalLocos();
-  testDelay(1000);
-  Serial.println("Requesting the number of supported locos (<#>)");
-  csClient.getNumberSupportedLocos();
-  testDelay(2000);
-  Serial.println("Enabling debug output and requesting the server version");
-  csClient.setDebug(true);
-  csClient.requestServerVersion();
-  testDelay(3000);
-  Serial.println("Disabling debug output");
-  csClient.setDebug(false);
-  testDelay(1000);
-  Serial.println("Refreshing all lists (roster, turnouts, routes, turntables)");
+#elif defined(ARDUINO_ARCH_STM32)
+  csClient.connect(&Serial1);
+#endif
+  Serial.println("Requesting the server version and object lists...");
   csClient.refreshAllLists();
-  testDelay(10000);
-  Serial.print("receivedLists() after refresh=");
-  Serial.println(csClient.receivedLists() ? "true" : "false");
-  Serial.println("Lists after refresh:");
-  printRoster();
-  printTurnouts();
-  printRoutes();
-  printTurntables();
-  Serial.print("Last server response time: ");
-  Serial.println(csClient.getLastServerResponseTime());
-}
-
-// --------------------------------------------------------------------------
-// Route (command station driven) tests, commenced with <R id>
-// --------------------------------------------------------------------------
-
-/**
- * @brief Check whether the provided route id exists in myAutomation.h
- * @param routeId Route id to check
- * @return true if the route is defined in myAutomation.h
- */
-static bool isKnownRoute(int routeId) {
-  switch (routeId) {
-  case 200:
-  case 300:
-  case 400:
-  case 500:
-  case 700:
-  case 701:
-  case 702:
-  case 703:
-  case 704:
-  case 705:
-  case 706:
-  case 708:
-    return true;
-  default:
-    return false;
-  }
-}
-
-/**
- * @brief Return the observation time in milliseconds for the provided route id
- */
-static unsigned long routeObserveMs(int routeId) {
-  switch (routeId) {
-  case 500:
-    return 30000;
-  case 703:
-  case 708:
-    return 30000;
-  default:
-    return 25000;
-  }
-}
-
-/**
- * @brief Start a route on the command station and monitor the broadcasts
- * @param routeId Route id to start via startRoute()
- */
-static void runRouteTest(int routeId) {
-  if (!isKnownRoute(routeId)) {
-    Serial.print("ERROR: Route ");
-    Serial.print(routeId);
-    Serial.println(" is not defined in myAutomation.h");
-    return;
-  }
-  testBanner("Route");
-  Serial.print("Starting route ");
-  Serial.print(routeId);
-  Serial.println(" via startRoute() (< / START id>)");
-  csClient.startRoute(routeId);
-  unsigned long observeMs = routeObserveMs(routeId);
-  Serial.print(">>> Monitoring ");
-  Serial.print(observeMs / 1000);
-  Serial.println(" seconds for route activity...");
+  csClient.requestServerVersion();
+  csClient.getLists();
+  Serial.print("Waiting up to ");
+  Serial.print(CONNECT_TIMEOUT / 1000);
+  Serial.println(" seconds for the command station to respond...");
   unsigned long start = millis();
-  while (millis() - start < observeMs) {
+  while (!(csClient.receivedVersion() && csClient.receivedLists())) {
+    if (millis() - start > CONNECT_TIMEOUT) {
+      Serial.println("ERROR: No response from the command station");
+      Serial.println(">>> Check the command station is powered and connected, is running");
+      Serial.println(">>> EX-CommandStation_Automation/myAutomation.h, then retry with <C>.");
+      return false;
+    }
     csClient.check();
   }
-  Serial.println(">>> Route test complete");
+  printConnectionSummary();
+  Serial.println("Verify the command station is running EX-CommandStation_Automation/myAutomation.h:");
+  Serial.println("  - 15 roster entries (2004-2066, so the roster list shows all entries)");
+  Serial.println("  - turnouts 100-105, 110, 120, 121 (105 is HIDDEN so it is not in the turnout list)");
+  Serial.println("  - turntables 2/3/4 and 21 JMRI sensors (6000-6300)");
+  Serial.println("  - routes 500, 700-706, 708 and AUTOMATION 301");
+  return true;
+}
+
+// --------------------------------------------------------------------------
+// Local (DUT driven) test bodies, commenced with <T id>
+// --------------------------------------------------------------------------
+
+// T 1 - Version, Lists & Refresh
+static void testVersionLists() { notMigrated("Version, Lists & Refresh"); }
+
+// T 2 - Roster loco control
+static void testRosterLocoControl() { notMigrated("Roster Loco Control"); }
+
+// T 3 - Local (non-roster) loco control
+static void testLocalLocoControl() { notMigrated("Local Loco Control"); }
+
+// T 4 - Turnout control
+static void testTurnoutControl() { notMigrated("Turnout Control"); }
+
+// T 5 - Turntable control
+static void testTurntableControl() { notMigrated("Turntable Control"); }
+
+// T 6 - Track power
+static void testTrackPower() { notMigrated("Track Power"); }
+
+// T 7 - Track types
+static void testTrackTypes() { notMigrated("Track Types"); }
+
+// T 8 - Track currents
+static void testTrackCurrents() { notMigrated("Track Currents"); }
+
+// T 9 - Momentum
+static void testMomentum() { notMigrated("Momentum"); }
+
+// T 10 - DCC accessories
+static void testAccessories() { notMigrated("DCC Accessories"); }
+
+// T 11 - Command station consists
+static void testConsistOps() { notMigrated("Consist Operations"); }
+
+// T 12 - Automation handoff
+static void testAutomationHandoff() { notMigrated("Automation Handoff"); }
+
+// T 13 - JMRI sensor list request
+static void testJMRISensorList() { notMigrated("JMRI Sensor List"); }
+
+// T 14 - CV programming
+static void testCVProgramming() { notMigrated("CV Programming (read)"); }
+
+// T 15 - Fast clock
+static void testFastClock() { notMigrated("Fast Clock"); }
+
+// T 16 - Delayed activity with pause/resume
+static void testDelayedActivity() { notMigrated("Delayed Activity + Pause/Resume"); }
+
+// T 17 - Miscellaneous
+static void testMiscellaneous() { notMigrated("Miscellaneous"); }
+
+// --------------------------------------------------------------------------
+// Test registries - single source of truth for the menus and dispatch
+// --------------------------------------------------------------------------
+
+/**
+ * @brief Definition of a local (DUT driven) test
+ */
+struct LocalTest {
+  int id;                  //<! Sequential test id entered as <T id>
+  const char *name;        //<! Short menu name
+  const char *description; //<! One line description of what the test does
+  void (*fn)();            //<! Test body
+};
+
+/**
+ * @brief Definition of a route (command station driven) test
+ */
+struct RouteTest {
+  int id;                  //<! Sequential test id entered as <R id>
+  const char *name;        //<! Short menu name
+  const char *description; //<! One line description, empty if none
+  int csRouteId;           //<! Underlying command station route id used for startRoute()
+  unsigned long observeMs; //<! Observation window in milliseconds
+};
+
+static const LocalTest localTests[] = {
+    {1, "Version, Lists & Refresh", "getLists(), refresh, counts", testVersionLists},
+    {2, "Roster Loco Control", "loco 2010 throttle/functions/update", testRosterLocoControl},
+    {3, "Local Loco Control", "non-roster loco 9999", testLocalLocoControl},
+    {4, "Turnout Control", "throw/close/toggle 100/101/102", testTurnoutControl},
+    {5, "Turntable Control", "rotate DCC turntables 2/4", testTurntableControl},
+    {6, "Track Power", "all/MAIN/PROG on-off", testTrackPower},
+    {7, "Track Types", "A: MAIN/PROG/DC/DCX", testTrackTypes},
+    {8, "Track Currents", "gauges + currents", testTrackCurrents},
+    {9, "Momentum", "algorithm/default/loco", testMomentum},
+    {10, "DCC Accessories", "address 10, linear 500", testAccessories},
+    {11, "Consist Operations", "CS consist build/drive/break", testConsistOps},
+    {12, "Automation Handoff", "handOffLoco 3001 -> automation 301", testAutomationHandoff},
+    {13, "JMRI Sensor List", "request <Q> list", testJMRISensorList},
+    {14, "CV Programming (read)", "readLoco() + readCV", testCVProgramming},
+    {15, "Fast Clock", "set + request time", testFastClock},
+    {16, "Delayed Activity + Pause/Resume", "startRoute 708", testDelayedActivity},
+    {17, "Miscellaneous", "locos/accessories/debug/lists", testMiscellaneous},
+};
+
+static const RouteTest routeTests[] = {
+    {1, "Loco Drive", "loco 2010", 700, 25000},
+    {2, "Local Loco Drive", "loco 9999", 701, 25000},
+    {3, "Turnout Ops", "", 702, 25000},
+    {4, "Turntable Ops", "", 703, 30000},
+    {5, "Power Changes", "", 704, 25000},
+    {6, "Messages", "", 705, 25000},
+    {7, "Consist Ops", "", 706, 25000},
+    {8, "JMRI Sensor Test", "", 500, 30000},
+    {9, "Delayed Activity", "long running", 708, 30000},
+};
+
+static const int localTestCount = sizeof(localTests) / sizeof(localTests[0]);
+static const int routeTestCount = sizeof(routeTests) / sizeof(routeTests[0]);
+
+/**
+ * @brief Find a local test by its id
+ * @param testId Test id to find
+ * @return Pointer to the matching LocalTest entry, or nullptr if not found
+ */
+static const LocalTest *findLocalTest(int testId) {
+  for (int i = 0; i < localTestCount; i++) {
+    if (localTests[i].id == testId)
+      return &localTests[i];
+  }
+  return nullptr;
+}
+
+/**
+ * @brief Find a route test by its id
+ * @param testId Test id to find
+ * @return Pointer to the matching RouteTest entry, or nullptr if not found
+ */
+static const RouteTest *findRouteTest(int testId) {
+  for (int i = 0; i < routeTestCount; i++) {
+    if (routeTests[i].id == testId)
+      return &routeTests[i];
+  }
+  return nullptr;
+}
+
+/**
+ * @brief Print the provided text padded with spaces to the specified width
+ * @param text Text to print
+ * @param width Minimum width to pad to
+ */
+static void printPadded(const char *text, int width) {
+  int length = 0;
+  while (text[length])
+    length++;
+  Serial.print(text);
+  for (int i = length; i < width; i++)
+    Serial.print(F(" "));
+}
+
+/**
+ * @brief Print the menu of available tests, rendered from the registries
+ */
+static void printTestMenu() {
+  char line[96];
+  Serial.println();
+  Serial.println("============================================================");
+  Serial.println("DCCEXProtocol testing menu");
+  Serial.println("============================================================");
+  Serial.println("Local tests on the DUT (<T id>):");
+  for (int i = 0; i < localTestCount; i++) {
+    snprintf(line, sizeof(line), "  <T %2d>  ", localTests[i].id);
+    Serial.print(line);
+    printPadded(localTests[i].name, 34);
+    Serial.println(localTests[i].description);
+  }
+  Serial.println();
+  Serial.println("Routes to start on the command station (<R id>):");
+  for (int i = 0; i < routeTestCount; i++) {
+    snprintf(line, sizeof(line), "  <R %2d>  ", routeTests[i].id);
+    Serial.print(line);
+    printPadded(routeTests[i].name, 24);
+    snprintf(line, sizeof(line), "CS route %d", routeTests[i].csRouteId);
+    Serial.print(line);
+    if (routeTests[i].description[0]) {
+      snprintf(line, sizeof(line), "  (%s)", routeTests[i].description);
+      Serial.print(line);
+    }
+    Serial.println();
+  }
+  Serial.println();
 }
 
 /**
@@ -499,101 +368,36 @@ static void runRouteTest(int routeId) {
  * @param testId Test id to run
  */
 static void runLocalTest(int testId) {
-  switch (testId) {
-  case 500:
-    testJMRISensorList();
-    break;
-  case 700:
-    testRosterLocoControl();
-    break;
-  case 701:
-    testLocalLocoControl();
-    break;
-  case 702:
-    testTurnoutControl();
-    break;
-  case 703:
-    testTurntableControl();
-    break;
-  case 704:
-    testTrackPower();
-    break;
-  case 706:
-    testConsistOps();
-    break;
-  case 301:
-    testAutomationHandoff();
-    break;
-  case 708:
-    testDelayedActivity();
-    break;
-  case 710:
-    testTrackTypes();
-    break;
-  case 711:
-    testTrackCurrents();
-    break;
-  case 712:
-    testMomentum();
-    break;
-  case 713:
-    testAccessories();
-    break;
-  case 714:
-    testCVProgramming();
-    break;
-  case 715:
-    testFastClock();
-    break;
-  case 716:
-    testListRefreshMisc();
-    break;
-  default:
+  const LocalTest *test = findLocalTest(testId);
+  if (test) {
+    test->fn();
+  } else {
     Serial.print("ERROR: Unknown local test id: ");
     Serial.println(testId);
-    break;
   }
 }
 
 /**
- * @brief Print the menu of available tests
+ * @brief Start a route test (command station driven) for the provided test id
+ *
+ * @note Phase 1a placeholder - the route is not actually started until the menu structure has been approved.
+ * @param testId Test id to run
  */
-static void printTestMenu() {
+static void runRouteTest(int testId) {
+  const RouteTest *test = findRouteTest(testId);
+  if (!test) {
+    Serial.print("ERROR: Unknown route test id: ");
+    Serial.println(testId);
+    return;
+  }
+  testBanner(test->name);
   Serial.println();
-  Serial.println("============================================================");
-  Serial.println("DCCEXProtocol testing menu");
-  Serial.println("============================================================");
-  Serial.println("Routes to start on the command station (<R id>):");
-  Serial.println("  <R 200>  Route 200 (basic)");
-  Serial.println("  <R 300>  Automation 300 (basic)");
-  Serial.println("  <R 400>  Route 400 (basic)");
-  Serial.println("  <R 500>  JMRI Sensor Test (sensor broadcasts)");
-  Serial.println("  <R 700>  Loco Drive (roster loco 2010)");
-  Serial.println("  <R 701>  Local Loco Drive (non-roster loco 9999)");
-  Serial.println("  <R 702>  Turnout Ops");
-  Serial.println("  <R 703>  Turntable Ops");
-  Serial.println("  <R 704>  Power Changes");
-  Serial.println("  <R 705>  Messages");
-  Serial.println("  <R 706>  Consist Ops");
-  Serial.println("  <R 708>  Delayed Activity (long running)");
-  Serial.println();
-  Serial.println("Local tests on the DUT (<T id>):");
-  Serial.println("  <T 301>  Automation Handoff (handOffLoco to automation 301)");
-  Serial.println("  <T 500>  Request JMRI sensor list");
-  Serial.println("  <T 700>  Roster Loco Control (loco 2010)");
-  Serial.println("  <T 701>  Local Loco Control (loco 9999)");
-  Serial.println("  <T 702>  Turnout Control");
-  Serial.println("  <T 703>  Turntable Control");
-  Serial.println("  <T 704>  Track Power");
-  Serial.println("  <T 706>  Command Station Consist Operations");
-  Serial.println("  <T 708>  Delayed Activity with Pause/Resume");
-  Serial.println("  <T 710>  Track Types");
-  Serial.println("  <T 711>  Track Currents");
-  Serial.println("  <T 712>  Momentum");
-  Serial.println("  <T 713>  DCC Accessories");
-  Serial.println("  <T 714>  CV Programming (read loco address only)");
-  Serial.println("  <T 715>  Fast Clock");
-  Serial.println("  <T 716>  List Refresh and Miscellaneous");
+  Serial.println("NOTE: The body of this test has not been migrated yet.");
+  Serial.print("It will start CS route ");
+  Serial.print(test->csRouteId);
+  Serial.print(" via startRoute() and monitor for ");
+  Serial.print(test->observeMs / 1000);
+  Serial.println(" seconds.");
   Serial.println();
 }
 
@@ -601,12 +405,15 @@ static void printTestMenu() {
  * @brief Run the menu driven test console, printing the menu after every test
  */
 static void runTestConsole() {
-  printConnectionSummary();
   while (true) {
     printTestMenu();
     char opcode;
     int id;
     if (consoleReadCommand(&opcode, &id)) {
+      if (opcode == 'C') {
+        connectToCommandStation();
+        continue;
+      }
       if (opcode == 'R') {
         runRouteTest(id);
       } else {

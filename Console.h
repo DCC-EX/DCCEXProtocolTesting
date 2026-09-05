@@ -3,6 +3,7 @@
  * @brief Interactive serial console for the DCCEXProtocol testing sketch.
  *
  * @details The operator enters commands in DCC-EX protocol style to commence tests:
+ *  - <C> connects to the EX-CommandStation manually (requests the version and object lists)
  *  - <R id> starts a ROUTE on the command station via startRoute(), the command station runs the route and broadcasts
  *  - <T id> starts a local test on the device under test, which drives activity via the library API
  *
@@ -55,19 +56,24 @@ static bool consoleGetFrame(char *buffer) {
 }
 
 /**
- * @brief Blocking prompt requesting a <opcode id> command (e.g. <R 704> or <T 704>)
- * @param opcode Output opcode ('T' or 'R')
- * @param id Output test/route id
+ * @brief Blocking prompt requesting a <opcode id> command (e.g. <C>, <R 704> or <T 1>)
+ * @param opcode Output opcode ('C', 'T' or 'R')
+ * @param id Output test/route id (always 0 for <C>)
  * @return true once a valid command has been entered
  */
 static bool consoleReadCommand(char *opcode, int *id) {
-  Serial.println(">>> Enter <T id> to run a local test, or <R id> to start a route on the command station:");
+  Serial.println(">>> Enter <C> to connect, <T id> for a local test, or <R id> for a route on the command station:");
   while (true) {
     csClient.check();
     char frame[consoleBufferSize];
     if (consoleGetFrame(frame)) {
       char op = frame[0];
       *opcode = (op >= 'a' && op <= 'z') ? (op - ('a' - 'A')) : op;
+      if (*opcode == 'C') {
+        *id = 0;
+        Serial.println("> <C>");
+        return true;
+      }
       if (*opcode == 'T' || *opcode == 'R') {
         *id = atoi(frame + 1);
         if (*id > 0) {
@@ -82,7 +88,7 @@ static bool consoleReadCommand(char *opcode, int *id) {
       Serial.print(">>> Invalid command: <");
       Serial.print(frame);
       Serial.println(">");
-      Serial.println(">>> Use <T id> for a local test or <R id> for a route on the command station");
+      Serial.println(">>> Use <C> to connect, <T id> for a local test or <R id> for a route on the command station");
     }
   }
 }

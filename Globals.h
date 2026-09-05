@@ -2,8 +2,8 @@
  * @file Globals.h
  * @brief Global object declarations for the DCCEXProtocol testing sketch.
  *
- * @details The actual objects are defined in DCCEXProtocolTesting.ino, this header simply declares them as extern so the
- * helper headers (PrintHelpers.h, TestListener.h, TestSequence.h) can reference them.
+ * @details The actual objects are defined in DCCEXProtocolTesting.ino, this header simply declares them as extern so
+ * the helper headers (PrintHelpers.h, TestListener.h, TestSequence.h) can reference them.
  */
 
 #ifndef GLOBALS_H
