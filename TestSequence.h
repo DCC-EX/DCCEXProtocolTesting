@@ -54,6 +54,20 @@ static void testDelay(unsigned long ms) {
 }
 
 /**
+ * @brief Start a compact `<< <n> ...` phase marker on the DUT serial console
+ *
+ * @details The operator narration lives in README.md (see AGENTS.md), so the DUT prints short `<< <phase> <op>`
+ * markers instead of full sentences. Markers reuse a small pool of shared literals at each call site - the same
+ * fragment-reuse idea as DCCEXProtocol's _cmdAppend(), applied to streamed Serial output rather than a buffer.
+ * @param n Phase number within the test
+ */
+static void phase(int n) {
+  Serial.print("<< ");
+  Serial.print(n);
+  Serial.print(' ');
+}
+
+/**
  * @brief Print a test banner to the DUT serial console
  * @param name Name of the test
  */
@@ -93,7 +107,7 @@ static void printConnectionSummary() {
   Serial.println(csClient.getRouteCount());
   Serial.print("Turntable count: ");
   Serial.println(csClient.getTurntableCount());
-  Serial.println("Verify the version matches the CS console and all lists are printed below:");
+  Serial.println("Verify the version matches - all lists print below:");
   printRoster();
   printTurnouts();
   printRoutes();
@@ -125,12 +139,10 @@ static bool connectToCommandStation() {
     Serial.println(WiFi.localIP());
   }
   if (!wifiClient.connected()) {
-    Serial.println("Connecting to the command station over WiFi...");
+    Serial.println("connecting to the CS over WiFi...");
     if (!wifiClient.connect(serverAddress, serverPort)) {
-      Serial.println("ERROR: Connection to the command station failed");
-      Serial.println(
-          ">>> Check the command station is powered and is running EX-CommandStation_Automation/myAutomation.h,");
-      Serial.println(">>> and that serverAddress/serverPort in myWiFi.h are correct, then retry with <C>.");
+      Serial.println("ERROR: connection to the CS failed");
+      Serial.println("  is myAutomation.h running? myWiFi.h correct? then retry <C>");
       return false;
     }
     csClient.connect(&wifiClient);
@@ -138,18 +150,17 @@ static bool connectToCommandStation() {
 #elif defined(ARDUINO_ARCH_STM32)
   csClient.connect(&Serial1);
 #endif
-  Serial.println("Requesting the server version and object lists...");
+  Serial.println("requesting version + lists...");
   csClient.refreshAllLists();
   csClient.requestServerVersion();
   Serial.print("Waiting up to ");
   Serial.print(CONNECT_TIMEOUT / 1000);
-  Serial.println(" seconds for the command station to respond...");
+  Serial.println(" s for the CS to respond...");
   unsigned long start = millis();
   while (!(csClient.receivedVersion() && csClient.receivedLists())) {
     if (millis() - start > CONNECT_TIMEOUT) {
-      Serial.println("ERROR: No response from the command station");
-      Serial.println(">>> Check the command station is powered and connected, is running");
-      Serial.println(">>> EX-CommandStation_Automation/myAutomation.h, then retry with <C>.");
+      Serial.println("ERROR: no response from the CS");
+      Serial.println("  is the CS powered with myAutomation.h? retry <C>");
       return false;
     }
     csClient.getLists(); // gated: requests the next list once the previous one is in
@@ -157,9 +168,9 @@ static bool connectToCommandStation() {
   }
   csConnected = true;
   printConnectionSummary();
-  Serial.println("Verify the command station is running EX-CommandStation_Automation/myAutomation.h:");
-  Serial.println("  - 15 roster entries (2004-2066, so the roster list shows all entries)");
-  Serial.println("  - turnouts 100-105, 110, 120, 121 (105 is HIDDEN so it is not in the turnout list)");
+  Serial.println("verify myAutomation.h objects:");
+  Serial.println("  - roster 2004-2066 (15 entries)");
+  Serial.println("  - turnouts 100-105, 110, 120, 121 (105 hidden)");
   Serial.println("  - turntables 2/3/4 and 21 JMRI sensors (6000-6300)");
   Serial.println("  - routes 500, 700-706, 708 and AUTOMATION 301");
   return true;
@@ -195,7 +206,7 @@ static void waitForAllLists(unsigned long windowMs = CONNECT_TIMEOUT) {
   unsigned long start = millis();
   while (!csClient.receivedLists()) {
     if (millis() - start > windowMs) {
-      Serial.println("ERROR: Timed out waiting for the object lists");
+      Serial.println("ERROR: timed out waiting for the lists");
       return;
     }
     csClient.getLists(); // gated: requests the next list once the previous one is in
@@ -213,7 +224,8 @@ static void testVersionLists() {
   csListener.clearExpectations();
   // First clear the client lists (refreshAllLists()) so the later getLists() cascade genuinely re-requests them
   // over the wire. A getLists() call is a no-op while receivedLists() is already true (see waitForAllLists()).
-  Serial.println("Reset the client lists, then request the server version (<s>) and all object lists");
+  phase(1);
+  Serial.println("reset lists, request version");
   csClient.refreshAllLists();
   csClient.requestServerVersion();
   csListener.expectServerVersion();
@@ -230,7 +242,8 @@ static void testVersionLists() {
   Serial.println(csClient.getRouteCount());
   Serial.print("Turntable count: ");
   Serial.println(csClient.getTurntableCount());
-  Serial.println("Refreshing all lists (refreshAllLists() then getLists())");
+  phase(2);
+  Serial.println("refresh all lists");
   csClient.refreshAllLists();
   csListener.expectRosterList();
   csListener.expectTurnoutList();
@@ -251,41 +264,55 @@ static void testRosterLocoControl() {
   csListener.clearExpectations();
   Loco *loco2010 = csClient.findLocoInRoster(2010);
   if (loco2010) {
-    Serial.println("Testing with roster loco 2010");
+    phase(1);
+    Serial.println("roster loco 2010");
     printLoco(loco2010);
-    Serial.println("Set throttle to speed 30 Forward (<t 2010 30 1>)");
+    phase(2);
+    Serial.print("throttle ");
+    Serial.print(2010);
+    Serial.println(" <t 2010 30 1>");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.setThrottle(loco2010, 30, Forward);
     waitForExpectations();
-    Serial.println("Function 0 ON");
+    phase(3);
+    Serial.println("fn 0 on");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.functionOn(loco2010, 0);
     waitForExpectations();
-    Serial.println("Function 0 OFF");
+    phase(4);
+    Serial.println("fn 0 off");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.functionOff(loco2010, 0);
     waitForExpectations();
-    Serial.println("Set throttle to speed 60 Reverse (<t 2010 60 0>)");
+    phase(5);
+    Serial.print("throttle ");
+    Serial.print(2010);
+    Serial.println(" <t 2010 60 0>");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.setThrottle(loco2010, 60, Reverse);
     waitForExpectations();
-    Serial.println("Stopping loco 2010 (<t 2010 0 1>)");
+    phase(6);
+    Serial.print("stop ");
+    Serial.println(2010);
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.setThrottle(loco2010, 0, Forward);
     waitForExpectations();
-    Serial.println("Requesting a loco update (<t 2010>)");
+    phase(7);
+    Serial.print("update ");
+    Serial.print(2010);
+    Serial.println(" <t 2010>");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.requestLocoUpdate(2010);
     waitForExpectations();
     Serial.print("isFunctionOn(loco2010, 0)=");
     Serial.println(csClient.isFunctionOn(loco2010, 0) ? "true" : "false");
-    Serial.println(">>> Verify the speed/direction/function changes on the CS console");
+    Serial.println(">> cross-check on the CS console");
   } else {
     Serial.println("ERROR: Loco 2010 not found in roster");
   }
@@ -296,27 +323,36 @@ static void testRosterLocoControl() {
 static void testLocalLocoControl() {
   testBanner("Local (non-roster) Loco Control");
   csListener.clearExpectations();
-  Serial.println("Creating a local loco with address 9999");
+  phase(1);
+  Serial.print("new loco ");
+  Serial.println(9999);
   Loco *localLoco = new Loco(9999, LocoSourceEntry);
   localLoco->setName("Local 9999");
   printLocalLocos();
   printLoco(localLoco);
-  Serial.println("Set throttle to speed 25 Forward (<t 9999 25 1>)");
+  phase(2);
+  Serial.print("throttle ");
+  Serial.print(9999);
+  Serial.println(" <t 9999 25 1>");
   csListener.expectLocoBroadcast(9999);
   csListener.expectLocoUpdate(9999);
   csClient.setThrottle(localLoco, 25, Forward);
   waitForExpectations();
-  Serial.println("Function 1 ON");
+  phase(3);
+  Serial.println("fn 1 on");
   csListener.expectLocoBroadcast(9999);
   csListener.expectLocoUpdate(9999);
   csClient.functionOn(localLoco, 1);
   waitForExpectations();
-  Serial.println("Stopping loco 9999 (<t 9999 0 1>)");
+  phase(4);
+  Serial.print("stop ");
+  Serial.println(9999);
   csListener.expectLocoBroadcast(9999);
   csListener.expectLocoUpdate(9999);
   csClient.setThrottle(localLoco, 0, Forward);
   waitForExpectations();
-  Serial.println("Deleting the local loco to test list cleanup");
+  phase(5);
+  Serial.println("delete local loco");
   delete localLoco;
   testDelay(1000);
   printLocalLocos();
@@ -327,23 +363,36 @@ static void testLocalLocoControl() {
 static void testTurnoutControl() {
   testBanner("Turnout Control");
   csListener.clearExpectations();
-  Serial.println("Throwing turnout 100 (<T 100 1>)");
+  phase(1);
+  Serial.print("turnout ");
+  Serial.print(100);
+  Serial.println(" throw");
   csListener.expectTurnoutAction(100, true);
   csClient.throwTurnout(100);
   waitForExpectations();
-  Serial.println("Closing turnout 100 (<T 100 0>)");
+  phase(2);
+  Serial.print("turnout ");
+  Serial.print(100);
+  Serial.println(" close <T 100 0>");
   csListener.expectTurnoutAction(100, false);
   csClient.closeTurnout(100);
   waitForExpectations();
-  Serial.println("Toggling turnout 101 (<T 101 -1>)");
+  phase(3);
+  Serial.print("toggle ");
+  Serial.println(101);
   csListener.expectTurnoutAction(101, EXPECT_ANY);
   csClient.toggleTurnout(101);
   waitForExpectations();
-  Serial.println("Toggling turnout 101 again");
+  phase(4);
+  Serial.print("toggle ");
+  Serial.println(101);
   csListener.expectTurnoutAction(101, EXPECT_ANY);
   csClient.toggleTurnout(101);
   waitForExpectations();
-  Serial.println("Throwing turnout 102");
+  phase(5);
+  Serial.print("turnout ");
+  Serial.print(102);
+  Serial.println(" throw");
   csListener.expectTurnoutAction(102, true);
   csClient.throwTurnout(102);
   waitForExpectations();
@@ -352,7 +401,7 @@ static void testTurnoutControl() {
     Serial.print("getTurnoutById(100) state=");
     Serial.println(turnout100->getThrown() ? "Thrown" : "Closed");
   }
-  Serial.println(">>> Verify the turnout states on the CS console");
+  Serial.println(">> cross-check on the CS console");
   csListener.printExpectationResult();
 }
 
@@ -360,23 +409,38 @@ static void testTurnoutControl() {
 static void testTurntableControl() {
   testBanner("Turntable Control");
   csListener.clearExpectations();
-  Serial.println("Rotating turntable 2 to position 2 (<I 2 2>)");
+  phase(1);
+  Serial.print("rot tt ");
+  Serial.print(2);
+  Serial.println(" -> 2");
   csListener.expectTurntableAction(2, 2);
   csClient.rotateTurntable(2, 2);
   waitForExpectations(8000);
-  Serial.println("Rotating turntable 2 to position 4 (<I 2 4>)");
+  phase(2);
+  Serial.print("rot tt ");
+  Serial.print(2);
+  Serial.println(" -> 4");
   csListener.expectTurntableAction(2, 4);
   csClient.rotateTurntable(2, 4);
   waitForExpectations(8000);
-  Serial.println("Rotating turntable 2 to home position 0 (<I 2 0>)");
+  phase(3);
+  Serial.print("rot tt ");
+  Serial.print(2);
+  Serial.println(" -> home");
   csListener.expectTurntableAction(2, 0);
   csClient.rotateTurntable(2, 0);
   waitForExpectations(8000);
-  Serial.println("Rotating turntable 4 to position 1 (<I 4 1>)");
+  phase(4);
+  Serial.print("rot tt ");
+  Serial.print(4);
+  Serial.println(" -> 1");
   csListener.expectTurntableAction(4, 1);
   csClient.rotateTurntable(4, 1);
   waitForExpectations(8000);
-  Serial.println("Rotating turntable 4 to position 3 (<I 4 3>)");
+  phase(5);
+  Serial.print("rot tt ");
+  Serial.print(4);
+  Serial.println(" -> 3");
   csListener.expectTurntableAction(4, 3);
   csClient.rotateTurntable(4, 3);
   waitForExpectations(8000);
@@ -385,7 +449,7 @@ static void testTurntableControl() {
     Serial.print("getTurntableById(2) index=");
     Serial.println(turntable2->getIndex());
   }
-  Serial.println(">>> Verify the turntable activity on the CS console");
+  Serial.println(">> cross-check on the CS console");
   csListener.printExpectationResult();
 }
 
@@ -393,33 +457,39 @@ static void testTurntableControl() {
 static void testTrackPower() {
   testBanner("Track Power");
   csListener.clearExpectations();
-  Serial.println("Turning all track power ON (<1>)");
+  phase(1);
+  Serial.println("power all on <1>");
   csListener.expectTrackPower(PowerOn);
   csClient.powerOn();
   waitForExpectations();
-  Serial.println("Turning all track power OFF (<0>)");
+  phase(2);
+  Serial.println("power all off <0>");
   csListener.expectTrackPower(PowerOff);
   csClient.powerOff();
   waitForExpectations();
-  Serial.println("Turning all track power ON again (<1>)");
+  phase(3);
+  Serial.println("power all on <1>");
   csListener.expectTrackPower(PowerOn);
   csClient.powerOn();
   waitForExpectations();
-  Serial.println("Turning MAIN track OFF then ON (<0 MAIN>/<1 MAIN>)");
-  Serial.println(">>> MAIN power may broadcast globally or per track - verify the track state on the CS console");
+  phase(4);
+  Serial.println("MAIN off then on <0/1 MAIN>");
+  Serial.println(">> MAIN may broadcast global or per track");
   csListener.expectTrackPower(EXPECT_ANY);
   csClient.powerMainOff();
   waitForExpectations();
   csListener.expectTrackPower(EXPECT_ANY);
   csClient.powerMainOn();
   waitForExpectations();
-  Serial.println("Turning PROG track OFF then ON (<0 PROG>/<1 PROG>)");
-  Serial.println(">>> PROG power changes are often not broadcast - verify the PROG track on the CS console");
+  phase(5);
+  Serial.println("PROG off then on <0/1 PROG>");
+  Serial.println(">> PROG power often not broadcast");
   csClient.powerProgOff();
   testDelay(3000);
   csClient.powerProgOn();
   testDelay(3000);
-  Serial.println("Turning track B ON then OFF (<1 B>/<0 B>)");
+  phase(6);
+  Serial.println("track B on then off <1/0 B>");
   csListener.expectIndividualTrackPower('B', PowerOn);
   csListener.expectTrackPower(PowerOn);
   csClient.powerTrackOn('B');
@@ -428,8 +498,9 @@ static void testTrackPower() {
   csListener.expectTrackPower(PowerOff);
   csClient.powerTrackOff('B');
   waitForExpectations();
-  Serial.println("Powering the PROG track as a joined track (joinProg() <1 JOIN>)");
-  Serial.println(">>> joinProg() may not be broadcast - verify the PROG track joins on the CS console");
+  phase(7);
+  Serial.println("join PROG <1 JOIN>");
+  Serial.println(">> joinProg() may not broadcast");
   csClient.joinProg();
   testDelay(3000);
   csListener.printExpectationResult();
@@ -439,28 +510,33 @@ static void testTrackPower() {
 static void testTrackTypes() {
   testBanner("Track Types");
   csListener.clearExpectations();
-  Serial.println("NOTE: These commands change the actual track modes on the command station");
-  Serial.println("Setting Track A to MAIN");
+  Serial.println("NOTE: changes track modes on the CS");
+  phase(1);
+  Serial.println("A -> MAIN");
   csListener.expectTrackType('A', MAIN, EXPECT_ANY);
   csClient.setTrackType('A', MAIN, 0);
   waitForExpectations(5000);
-  Serial.println("Setting Track A to PROG");
+  phase(2);
+  Serial.println("A -> PROG");
   csListener.expectTrackType('A', PROG, EXPECT_ANY);
   csClient.setTrackType('A', PROG, 0);
   waitForExpectations(5000);
-  Serial.println("Setting Track A to DC address 5");
+  phase(3);
+  Serial.println("A -> DC 5");
   csListener.expectTrackType('A', DC, 5);
   csClient.setTrackType('A', DC, 5);
   waitForExpectations(5000);
-  Serial.println("Setting Track A to DCX address 6");
+  phase(4);
+  Serial.println("A -> DCX 6");
   csListener.expectTrackType('A', DCX, 6);
   csClient.setTrackType('A', DCX, 6);
   waitForExpectations(5000);
-  Serial.println("Restoring Track A to MAIN");
+  phase(5);
+  Serial.println("A -> MAIN");
   csListener.expectTrackType('A', MAIN, EXPECT_ANY);
   csClient.setTrackType('A', MAIN, 0);
   waitForExpectations(5000);
-  Serial.println(">>> Verify the track mode changes on the CS console");
+  Serial.println(">> cross-check on the CS console");
   csListener.printExpectationResult();
 }
 
@@ -468,15 +544,17 @@ static void testTrackTypes() {
 static void testTrackCurrents() {
   testBanner("Track Currents");
   csListener.clearExpectations();
-  Serial.println("Requesting track current gauges (<jG>)");
+  phase(1);
+  Serial.println("gauges <jG>");
   csListener.expectTrackCurrentGauge(EXPECT_ANY, EXPECT_ANY, 8);
   csClient.requestTrackCurrentGauges();
   waitForExpectations(15000);
-  Serial.println("Requesting track currents (<jI>)");
+  phase(2);
+  Serial.println("currents <jI>");
   csListener.expectTrackCurrent(EXPECT_ANY, EXPECT_ANY, 8);
   csClient.requestTrackCurrents();
   waitForExpectations(15000);
-  Serial.println(">>> Verify the current values match the CS console");
+  Serial.println(">> cross-check on the CS console");
   csListener.printExpectationResult();
 }
 
@@ -484,28 +562,43 @@ static void testTrackCurrents() {
 static void testMomentum() {
   testBanner("Momentum");
   csListener.clearExpectations();
-  Serial.println("NOTE: No delegate callbacks are expected for these commands, check the CS console for responses");
-  Serial.println("Setting momentum algorithm to Linear");
+  Serial.println("NOTE: no callbacks - check the CS console");
+  phase(1);
+  Serial.println("alg -> Linear");
   csClient.setMomentumAlgorithm(Linear);
   testDelay(2000);
-  Serial.println("Setting default momentum to 10");
+  phase(2);
+  Serial.println("default mom 10");
   csClient.setDefaultMomentum(10);
   testDelay(2000);
-  Serial.println("Setting default momentum to 10 accelerating / 5 braking");
+  phase(3);
+  Serial.println("default mom 10/5");
   csClient.setDefaultMomentum(10, 5);
   testDelay(2000);
-  Serial.println("Setting momentum for address 2010 to 20");
+  phase(4);
+  Serial.print("mom ");
+  Serial.print(2010);
+  Serial.println(" 20");
   csClient.setMomentum(2010, 20);
   testDelay(2000);
-  Serial.println("Setting accelerating/braking momentum for address 2010 to 10/5");
+  phase(5);
+  Serial.print("mom ");
+  Serial.print(2010);
+  Serial.println(" 10/5");
   csClient.setMomentum(2010, 10, 5);
   testDelay(2000);
   Loco *loco2014 = csClient.findLocoInRoster(2014);
   if (loco2014) {
-    Serial.println("Setting momentum for Loco 2014 to 15");
+    phase(6);
+    Serial.print("mom ");
+    Serial.print(2014);
+    Serial.println(" 15");
     csClient.setMomentum(loco2014, 15);
     testDelay(2000);
-    Serial.println("Setting accelerating/braking momentum for Loco 2014 to 15/10");
+    phase(7);
+    Serial.print("mom ");
+    Serial.print(2014);
+    Serial.println(" 15/10");
     csClient.setMomentum(loco2014, 15, 10);
     testDelay(2000);
   }
@@ -516,17 +609,21 @@ static void testMomentum() {
 static void testAccessories() {
   testBanner("DCC Accessories");
   csListener.clearExpectations();
-  Serial.println("NOTE: No delegate callbacks are expected for these commands, check the CS console for responses");
-  Serial.println("Activating accessory 10 subaddress 1 (<A 10 1 1>)");
+  Serial.println("NOTE: no callbacks - check the CS console");
+  phase(1);
+  Serial.println("acc 10 sub 1 on");
   csClient.activateAccessory(10, 1);
   testDelay(2000);
-  Serial.println("Deactivating accessory 10 subaddress 1 (<A 10 1 0>)");
+  phase(2);
+  Serial.println("acc 10 sub 1 off");
   csClient.deactivateAccessory(10, 1);
   testDelay(2000);
-  Serial.println("Activating linear accessory 500 (<a 500 1>)");
+  phase(3);
+  Serial.println("lacc 500 on");
   csClient.activateLinearAccessory(500);
   testDelay(2000);
-  Serial.println("Deactivating linear accessory 500 (<a 500 0>)");
+  phase(4);
+  Serial.println("lacc 500 off");
   csClient.deactivateLinearAccessory(500);
   testDelay(2000);
   csListener.printExpectationResult();
@@ -536,86 +633,99 @@ static void testAccessories() {
 static void testConsistOps() {
   testBanner("Command Station Consists");
   csListener.clearExpectations();
-  Serial.println("Creating a CSConsist with lead loco 2010 (createCSConsist(2010))");
+  phase(1);
+  Serial.println("consist lead 2010");
   CSConsist *csConsist = csClient.createCSConsist(2010);
   if (csConsist) {
-    Serial.println("Adding member 2014 (reversed)");
+    phase(2);
+    Serial.println("member 2014 rev");
     csListener.expectCSConsist(2010);
     csClient.addCSConsistMember(csConsist, 2014, true);
     waitForExpectations();
-    Serial.println("Adding member 2016");
+    phase(3);
+    Serial.println("member 2016");
     csListener.expectCSConsist(2010);
     csClient.addCSConsistMember(csConsist, 2016);
     waitForExpectations();
     printCSConsists();
-    Serial.println("Setting consist throttle to speed 20 Forward");
+    phase(4);
+    Serial.println("consist thr 20 F");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.setThrottle(csConsist, 20, Forward);
     waitForExpectations();
-    Serial.println("Function 0 ON for the consist");
+    phase(5);
+    Serial.println("consist fn 0 on");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.functionOn(csConsist, 0);
     waitForExpectations();
-    Serial.println("Function 0 OFF for the consist");
+    phase(6);
+    Serial.println("consist fn 0 off");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.functionOff(csConsist, 0);
     waitForExpectations();
     Serial.print("isFunctionOn(csConsist, 0)=");
     Serial.println(csClient.isFunctionOn(csConsist, 0) ? "true" : "false");
-    Serial.println("Looking up the consist by lead/member loco");
-    Serial.print("getCSConsistByLeadLoco(2010)=");
+    phase(7);
+    Serial.println("lookup by lead/member");
+    Serial.print("byLead(2010)=");
     Serial.println(csClient.getCSConsistByLeadLoco(2010) ? "found" : "not found");
     Loco *loco2010 = csClient.findLocoInRoster(2010);
     if (loco2010) {
-      Serial.print("getCSConsistByLeadLoco(loco2010)=");
+      Serial.print("byLead(loco2010)=");
       Serial.println(csClient.getCSConsistByLeadLoco(loco2010) ? "found" : "not found");
     }
     Loco *loco2014 = csClient.findLocoInRoster(2014);
     if (loco2014) {
-      Serial.print("getCSConsistByMemberLoco(2014)=");
+      Serial.print("byMember(2014)=");
       Serial.println(csClient.getCSConsistByMemberLoco(2014) ? "found" : "not found");
-      Serial.print("getCSConsistByMemberLoco(loco2014)=");
+      Serial.print("byMember(loco2014)=");
       Serial.println(csClient.getCSConsistByMemberLoco(loco2014) ? "found" : "not found");
     }
-    Serial.println("Stopping the consist");
+    phase(8);
+    Serial.println("consist stop");
     csListener.expectLocoBroadcast(2010);
     csListener.expectLocoUpdate(2010);
     csClient.setThrottle(csConsist, 0, Forward);
     waitForExpectations();
-    Serial.println("Removing member 2016 (removeCSConsistMember())");
+    phase(9);
+    Serial.println("remove member 2016");
     csListener.expectCSConsist(2010);
     csClient.removeCSConsistMember(csConsist, 2016);
     waitForExpectations();
     printCSConsists();
-    Serial.println("Deleting the CSConsist via the pointer overload (deleteCSConsist(csConsist))");
-    Serial.println(">>> A consist deletion may not be broadcast - verify no consist 2010 remains on the CS console");
+    phase(10);
+    Serial.println("delete consist 2010");
+    Serial.println(">> deletion may not broadcast - check CS console");
     csClient.deleteCSConsist(csConsist);
     testDelay(2000);
-    Serial.println(
-        "Building a reversed replicated-functions consist with lead loco 2030 (createCSConsist(2030, true, true))");
+    phase(11);
+    Serial.println("replicated-functions consist lead 2030");
     CSConsist *reversedConsist = csClient.createCSConsist(2030, true, true);
     if (reversedConsist) {
       csListener.expectCSConsist(2030);
       csClient.addCSConsistMember(reversedConsist, 2014, true);
       waitForExpectations();
       printCSConsists();
-      Serial.println("Deleting the reversed consist via the int overload (deleteCSConsist(2030))");
-      Serial.println(">>> A consist deletion may not be broadcast - verify no consist 2030 remains on the CS console");
+      phase(12);
+      Serial.println("delete consist 2030");
+      Serial.println(">> deletion may not broadcast - check CS console");
       csClient.deleteCSConsist(2030);
       testDelay(2000);
     }
-    Serial.println("Clearing the client-side consist list (clearCSConsists() - local only)");
+    phase(13);
+    Serial.println("clear consist list");
     csClient.clearCSConsists();
     testDelay(1000);
     printCSConsists();
   } else {
     Serial.println("ERROR: Could not create CSConsist");
   }
-  Serial.println("Requesting the list of CSConsists from the CS (<^>)");
-  Serial.println(">>> Verify no consists remain configured on the CS console");
+  phase(14);
+  Serial.println("req consist list <^>");
+  Serial.println(">> cross-check on the CS console");
   csClient.requestCSConsists();
   testDelay(2000);
   printCSConsists();
@@ -626,8 +736,9 @@ static void testConsistOps() {
 static void testAutomationHandoff() {
   testBanner("Automation Handoff");
   csListener.clearExpectations();
-  Serial.println("Handing off loco 3001 to AUTOMATION 301 (< / START 3001 301>)");
-  Serial.println(">>> The automation drives loco 3001, so expect loco broadcasts from it");
+  phase(1);
+  Serial.println("handoff 3001 -> automation 301");
+  Serial.println(">> automation drives loco 3001 - expect broadcasts");
   csListener.expectLocoBroadcast(3001, EXPECT_ANY, EXPECT_ANY, 4);
   csClient.handOffLoco(3001, 301);
   waitForExpectations(20000);
@@ -638,11 +749,13 @@ static void testAutomationHandoff() {
 static void testJMRISensorList() {
   testBanner("JMRI Sensor List");
   csListener.clearExpectations();
-  Serial.println("Requesting the JMRI sensor list (<Q>)");
+  phase(1);
+  Serial.println("sensor list <Q>");
   csListener.expectJMRISensorBroadcast(EXPECT_ANY, 21);
   csClient.requestJMRISensorList();
   waitForExpectations(15000);
-  Serial.println(">>> Verify all 21 sensors are reported on the CS console");
+  phase(2);
+  Serial.println("expect 21 broadcasts");
   csListener.printExpectationResult();
 }
 
@@ -654,63 +767,72 @@ static void testCVProgramming() {
   csListener.clearExpectations();
   csListener.lastReadLocoAddress = -1;
   csListener.lastWriteCVValue = -1;
-  Serial.println("WARNING: This test drives the programming track and may affect a decoder if one is connected");
-  Serial.println("WARNING: Later phases write a loco's CV while on the main - ensure a loco is on the layout");
-  Serial.println(">>> Take the locos off the track or ensure a decoder is connected as the operator prefers");
+  Serial.println("WARNING: drives the PROG track");
+  Serial.println("WARNING: later writes CVs on the main");
+  Serial.println(">> remove locos or use a decoder as you prefer");
   testDelay(10000);
 
-  Serial.println("Reading the loco address from the programming track (<R>)");
+  phase(1);
+  Serial.println("read addr <R>");
   csListener.expectReadLoco(EXPECT_ANY);
   csClient.readLoco();
   waitForExpectations(15000);
   if (csListener.lastReadLocoAddress > 0) {
-    Serial.println("Writing the same address back (writeLocoAddress() - restores, no net change)");
+    phase(2);
+    Serial.println("write addr back");
     csListener.expectWriteLoco(csListener.lastReadLocoAddress);
     csClient.writeLocoAddress(csListener.lastReadLocoAddress);
     waitForExpectations(15000);
   } else {
-    Serial.println("No loco detected on the PROG track - skipping the address/CV write phases");
+    Serial.println(">> no loco on PROG - skipped addr/CV writes");
   }
   csListener.printExpectationResult();
   Serial.println();
 
-  Serial.println("Reading CV29 from the programming track (readCV() <R 29>)");
+  phase(3);
+  Serial.println("read cv 29");
   csListener.expectWriteCV(29, EXPECT_ANY);
   csClient.readCV(29);
   waitForExpectations(15000);
   if (csListener.lastWriteCVValue >= 0) {
-    Serial.println("Validating CV29 with the same value (validateCV() - writes and verifies, no net change)");
+    phase(4);
+    Serial.println("validate cv 29");
     csListener.expectValidateCV(29, csListener.lastWriteCVValue);
     csClient.validateCV(29, csListener.lastWriteCVValue);
     waitForExpectations(15000);
-    Serial.println("Writing CV29 bit 5 to 1 on the programming track (writeCVBit())");
+    phase(5);
+    Serial.println("cv bit 29:5 -> 1");
     csListener.expectWriteCV(29, EXPECT_ANY);
     csClient.writeCVBit(29, 5, 1);
     waitForExpectations(15000);
-    Serial.println("Validating CV29 bit 5 (validateCVBit())");
+    phase(6);
+    Serial.println("validate bit 29:5");
     csListener.expectValidateCVBit(29, 5, EXPECT_ANY);
     csClient.validateCVBit(29, 5, 1);
     waitForExpectations(15000);
-    Serial.println("Writing CV29 on the main for loco 2010 (writeCVOnMain() <w 2010 29 value>)");
-    Serial.println(
-        ">>> Writes the CV29 value just read - no net change if the layout loco was the one on the PROG track");
+    phase(7);
+    Serial.println("cv 29 on main 2010");
+    Serial.println(">> writes the value just read - no net change if same loco");
     csListener.expectWriteCV(29, csListener.lastWriteCVValue);
     csClient.writeCVOnMain(2010, 29, csListener.lastWriteCVValue);
     waitForExpectations(15000);
-    Serial.println("Writing CV29 bit 5 to 1 on the main for loco 2010 (writeCVBitOnMain())");
+    phase(8);
+    Serial.println("cv bit 29:5 on main 2010");
     csListener.expectWriteCV(29, EXPECT_ANY);
     csClient.writeCVBitOnMain(2010, 29, 5, 1);
     waitForExpectations(15000);
-    Serial.println("Restoring CV29 on the main to its original value (writeCVOnMain() - self restore)");
+    phase(9);
+    Serial.println("restore main cv 29");
     csListener.expectWriteCV(29, csListener.lastWriteCVValue);
     csClient.writeCVOnMain(2010, 29, csListener.lastWriteCVValue);
     waitForExpectations(15000);
-    Serial.println("Restoring CV29 to its original value (writeCV() - self restore)");
+    phase(10);
+    Serial.println("restore cv 29");
     csListener.expectWriteCV(29, csListener.lastWriteCVValue);
     csClient.writeCV(29, csListener.lastWriteCVValue);
     waitForExpectations(15000);
   } else {
-    Serial.println("No decoder detected on the PROG track (readCV failed) - skipping the write phases");
+    Serial.println(">> no decoder on PROG - skipped CV writes");
   }
   csListener.printExpectationResult();
 }
@@ -719,15 +841,17 @@ static void testCVProgramming() {
 static void testFastClock() {
   testBanner("Fast Clock");
   csListener.clearExpectations();
-  Serial.println("Setting fast clock to 7:00am with speed factor 4");
+  phase(1);
+  Serial.println("clock 07:00 x4");
   csListener.expectSetFastClock(420, 4);
   csClient.setFastClock(420, 4);
   waitForExpectations();
-  Serial.println("Requesting the fast clock time (<jC>)");
+  phase(2);
+  Serial.println("clock time <jC>");
   csListener.expectFastClockTime(EXPECT_ANY);
   csClient.requestFastClockTime();
   waitForExpectations();
-  Serial.println(">>> Verify the fast clock display on the CS console");
+  Serial.println(">> cross-check on the CS console");
   csListener.printExpectationResult();
 }
 
@@ -735,20 +859,23 @@ static void testFastClock() {
 static void testDelayedActivity() {
   testBanner("Delayed Activity + Pause/Resume");
   csListener.clearExpectations();
-  Serial.println("Starting ROUTE 708 (Delayed Activity) via startRoute() (< / START 708>)");
+  phase(1);
+  Serial.println("start route 708");
   csListener.expectTurnoutAction(100, true);
   csClient.startRoute(708);
   waitForExpectations(7000);
-  Serial.println("Pausing all routes (< / PAUSE>) - verify the route stops on the CS console");
+  phase(2);
+  Serial.println("pause routes < / PAUSE>");
   csClient.pauseRoutes();
   testDelay(5000);
-  Serial.println("Resuming all routes (< / RESUME>) - verify the route continues on the CS console");
+  phase(3);
+  Serial.println("resume routes < / RESUME>");
   csClient.resumeRoutes();
   csListener.expectTurnoutAction(101, true);
   csListener.expectTurnoutAction(100, false);
   csListener.expectTurnoutAction(101, false);
   waitForExpectations(25000);
-  Serial.println(">>> Route 708 should be complete on the CS console now");
+  Serial.println(">> route 708 should be complete now");
   csListener.printExpectationResult();
 }
 
@@ -758,50 +885,127 @@ static void testMiscellaneous() {
   csListener.clearExpectations();
   Serial.print("Library version: ");
   Serial.println(csClient.getLibraryVersion());
-  Serial.println("Clearing local locos (clearLocalLocos())");
+  phase(1);
+  Serial.println("clear local locos");
   csClient.clearLocalLocos();
   testDelay(1000);
-  Serial.println("Requesting the number of supported locos (<#>)");
+  phase(2);
+  Serial.println("supported locos <#>");
   csClient.getNumberSupportedLocos();
   testDelay(2000);
-  Serial.println("Emergency stop (emergencyStop() <!>)");
-  Serial.println("WARNING: This powers off all tracks - the locos will come to an abrupt stop");
+  phase(3);
+  Serial.println("emergency stop");
+  Serial.println("WARNING: powers off all tracks");
   csListener.expectTrackPower(PowerOff);
   csClient.emergencyStop();
   waitForExpectations(5000);
-  Serial.println("Restoring track power (powerOn() <1>)");
+  phase(4);
+  Serial.println("power all on <1>");
   csListener.expectTrackPower(PowerOn);
   csClient.powerOn();
   waitForExpectations(5000);
-  Serial.println("Enabling debug output and requesting the server version");
+  phase(5);
+  Serial.println("legacy Consist loco 2015");
+  Consist legacyConsist;
+  legacyConsist.addLoco(2015, FacingForward);
+  csClient.setThrottle(&legacyConsist, 25, Forward); // local user-speed mutation, no CS traffic
+  Serial.print("legacy speed = ");
+  Serial.println(legacyConsist.getSpeed());
+  csClient.functionOn(&legacyConsist, 1); // sends <F 2015 1 1>
+  testDelay(2000);
+  Serial.print("legacy fn1 after on = ");
+  Serial.println(csClient.isFunctionOn(&legacyConsist, 1) ? "true" : "false");
+  csClient.functionOff(&legacyConsist, 1); // sends <F 2015 1 0>
+  testDelay(2000);
+  Serial.print("legacy fn1 after off = ");
+  Serial.println(csClient.isFunctionOn(&legacyConsist, 1) ? "true" : "false");
+  Serial.println(">> cross-check on the CS console");
+  phase(6);
+  Serial.println("debug on");
   csClient.setDebug(true);
   csClient.requestServerVersion();
   csListener.expectServerVersion();
   waitForExpectations();
-  Serial.println("Disabling debug output");
+  phase(7);
+  Serial.println("debug off");
   csClient.setDebug(false);
   testDelay(1000);
-  Serial.println("Refreshing all lists (roster, turnouts, routes, turntables)");
+  phase(8);
+  Serial.println("clear all lists");
+  csClient.clearAllLists();
+  testDelay(1000);
+  phase(9);
+  Serial.println("refresh all lists");
   csClient.refreshAllLists();
   csListener.expectRosterList();
   csListener.expectTurnoutList();
   csListener.expectRouteList();
   csListener.expectTurntableList();
   waitForAllLists();
-  Serial.print("receivedLists() after refresh=");
+  Serial.print("lists received=");
   Serial.println(csClient.receivedLists() ? "true" : "false");
   Serial.println("Lists after refresh:");
   printRoster();
   printTurnouts();
   printRoutes();
   printTurntables();
-  Serial.print("Last server response time: ");
+  Serial.print("last response time: ");
   Serial.println(csClient.getLastServerResponseTime());
   csListener.printExpectationResult();
 }
 
-// --------------------------------------------------------------------------
-// Test registries - single source of truth for the menus and dispatch
+// T 18 - Explicit per-list clear + refresh
+static void testListMaintenance() {
+  testBanner("List Maintenance");
+  csListener.clearExpectations();
+  phase(1);
+  Serial.println("clear roster");
+  csClient.clearRoster();
+  testDelay(500);
+  phase(2);
+  Serial.println("fetch roster");
+  csListener.expectRosterList();
+  csClient.refreshRoster();
+  waitForExpectations(15000);
+  Serial.print("Roster count: ");
+  Serial.println(csClient.getRosterCount());
+  phase(3);
+  Serial.println("clear turnouts");
+  csClient.clearTurnoutList();
+  testDelay(500);
+  phase(4);
+  Serial.println("fetch turnouts");
+  csListener.expectTurnoutList();
+  csClient.refreshTurnoutList();
+  waitForExpectations(15000);
+  Serial.print("Turnout count: ");
+  Serial.println(csClient.getTurnoutCount());
+  phase(5);
+  Serial.println("clear routes");
+  csClient.clearRouteList();
+  testDelay(500);
+  phase(6);
+  Serial.println("fetch routes");
+  csListener.expectRouteList();
+  csClient.refreshRouteList();
+  waitForExpectations(15000);
+  Serial.print("Route count: ");
+  Serial.println(csClient.getRouteCount());
+  phase(7);
+  Serial.println("clear turntables");
+  csClient.clearTurntableList();
+  testDelay(500);
+  phase(8);
+  Serial.println("fetch turntables");
+  csListener.expectTurntableList();
+  csClient.refreshTurntableList();
+  waitForExpectations(15000);
+  Serial.print("Turntable count: ");
+  Serial.println(csClient.getTurntableCount());
+  Serial.println(">> cross-check on the CS console");
+  csListener.printExpectationResult();
+}
+
 // --------------------------------------------------------------------------
 
 /**
@@ -915,6 +1119,7 @@ static const LocalTest localTests[] = {
     {15, "Fast Clock", "set + request time", testFastClock},
     {16, "Delayed Activity + Pause/Resume", "startRoute 708", testDelayedActivity},
     {17, "Miscellaneous", "locos/accessories/debug/lists", testMiscellaneous},
+    {18, "List Maintenance", "per-list clear + refresh", testListMaintenance},
 };
 
 static const RouteTest routeTests[] = {
@@ -976,29 +1181,35 @@ static void printPadded(const char *text, int width) {
  * @brief Print the menu of available tests, rendered from the registries
  */
 static void printTestMenu() {
-  char line[96];
   Serial.println();
   Serial.println("============================================================");
   Serial.println("DCCEXProtocol testing menu");
   Serial.println("============================================================");
   Serial.println("Local tests on the DUT (<T id>):");
   for (int i = 0; i < localTestCount; i++) {
-    snprintf(line, sizeof(line), "  <T %2d>  ", localTests[i].id);
-    Serial.print(line);
+    Serial.print("  <T ");
+    if (localTests[i].id < 10)
+      Serial.print(' ');
+    Serial.print(localTests[i].id);
+    Serial.print(">  ");
     printPadded(localTests[i].name, 34);
     Serial.println(localTests[i].description);
   }
   Serial.println();
-  Serial.println("Routes to start on the command station (<R id>):");
+  Serial.println("Routes to start on the CS (<R id>):");
   for (int i = 0; i < routeTestCount; i++) {
-    snprintf(line, sizeof(line), "  <R %2d>  ", routeTests[i].id);
-    Serial.print(line);
+    Serial.print("  <R ");
+    if (routeTests[i].id < 10)
+      Serial.print(' ');
+    Serial.print(routeTests[i].id);
+    Serial.print(">  ");
     printPadded(routeTests[i].name, 24);
-    snprintf(line, sizeof(line), "CS route %d", routeTests[i].csRouteId);
-    Serial.print(line);
+    Serial.print("CS route ");
+    Serial.print(routeTests[i].csRouteId);
     if (routeTests[i].description[0]) {
-      snprintf(line, sizeof(line), "  (%s)", routeTests[i].description);
-      Serial.print(line);
+      Serial.print("  (");
+      Serial.print(routeTests[i].description);
+      Serial.print(")");
     }
     Serial.println();
   }
@@ -1011,15 +1222,15 @@ static void printTestMenu() {
  */
 static void runLocalTest(int testId) {
   if (!csConnected) {
-    Serial.println("ERROR: Not connected to the command station");
-    Serial.println(">>> Enter <C> first to connect, then try again with <T id>");
+    Serial.println("ERROR: not connected");
+    Serial.println("  use <C> first, then <T id>");
     return;
   }
   const LocalTest *test = findLocalTest(testId);
   if (test) {
     test->fn();
   } else {
-    Serial.print("ERROR: Unknown local test id: ");
+    Serial.print("ERROR: unknown local test id: ");
     Serial.println(testId);
   }
 }
@@ -1032,13 +1243,13 @@ static void runLocalTest(int testId) {
  */
 static void runRouteTest(int testId) {
   if (!csConnected) {
-    Serial.println("ERROR: Not connected to the command station");
-    Serial.println(">>> Enter <C> first to connect, then try again with <R id>");
+    Serial.println("ERROR: not connected");
+    Serial.println("  use <C> first, then <R id>");
     return;
   }
   const RouteTest *test = findRouteTest(testId);
   if (!test) {
-    Serial.print("ERROR: Unknown route test id: ");
+    Serial.print("ERROR: unknown route test id: ");
     Serial.println(testId);
     return;
   }
@@ -1047,15 +1258,15 @@ static void runRouteTest(int testId) {
   if (test->fn) {
     test->fn();
   }
-  Serial.print("Starting CS route ");
+  Serial.print("<< startRoute ");
   Serial.print(test->csRouteId);
-  Serial.println(" via startRoute() (< / START id>)");
+  Serial.println(" < / START id>");
   csClient.startRoute(test->csRouteId);
-  Serial.print(">>> Monitoring ");
+  Serial.print(">> monitoring ");
   Serial.print(test->observeMs / 1000);
-  Serial.println(" seconds for route activity...");
+  Serial.println("s for route activity");
   waitForExpectations(test->observeMs);
-  Serial.println(">>> Route test complete - verify the PRINT markers on the CS console");
+  Serial.println(">> route complete - check CS PRINT markers");
   csListener.printExpectationResult();
 }
 

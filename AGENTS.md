@@ -21,6 +21,10 @@ EX-CommandStation, with a human operator watching both consoles.
 Every public `DCCEXProtocol` method and every `DCCEXProtocolDelegate` callback **must** be exercised by some test.
 When the library adds methods/callbacks, that is a test gap - add coverage; never silently skip it.
 
+One exception: `DCCEXProtocol::disconnect()` is currently a no-op stub in the library, so it is deliberately not
+exercised. The deprecated `Consist *` overloads of `setThrottle()`, `functionOn()`, `functionOff()` and
+`isFunctionOn()` ARE exercised in `<T 17>` via a local legacy `Consist`.
+
 Two test classes:
 
 - `<T id>` **local tests** - the DUT drives activity via the library API and monitors the resulting responses and
@@ -66,8 +70,9 @@ Values that cannot be known up front use `EXPECT_ANY` (e.g. track currents, CS v
 
 - Prefer self-restoring tests: read a value, then write the same value back (e.g. `readLoco()` then
   `writeLocoAddress(<same address>)`).
-- Destructive operations (prog-track CV writes, track mode changes) must print a WARNING and a "verify <X> on the
-  CS console" outcome line, and give the operator time to observe.
+- Destructive operations (prog-track CV writes, track mode changes) must print a short WARNING marker and the shared
+  `>> cross-check on the CS console` line, and give the operator time to observe. The per-phase detail the operator
+  verifies lives in README.md `## Available tests` (the DUT prints `<< <phase> <op> <command>` markers that map to it).
 - Never block inside a test without pumping `csClient.check()` - delayed/async responses require it.
 - Clobbered client-side lists must be re-fetched within the same test (the library's `refresh*()`/`getLists()`), so
   no test leaves the DUT in a broken state for the next one.
@@ -85,10 +90,19 @@ side, the corresponding tests must be updated in the same change.
 
 ## House style
 
-- C++17, `-Wall -Os` (see `platformio.ini`).
+- C++17, `-Wall -Os` (see `platformio.ini`). `-flto` has been validated for the Bluepill env only (it frees 8-11 KB of
+  flash) but is NOT enabled - prebuilt ESP-IDF libraries are not LTO objects and the ESP32 env fails to link with it.
+  Reuse of shared fragment literals and terse console markers is preferred over build flags; see the narration rule.
+- Console narration is **terse markers, not sentences**: the DUT prints `<< <phase> <op> <command>` via the `phase()`
+  helper in `TestSequence.h`, and the full operator instructions live in README.md `## Available tests`. Compose
+  markers from a small pool of shared fragment literals streamed through `Serial.print` (the same fragment-reuse idea
+  as DCCEXProtocol's `_cmdAppend()`), never one-off sentences. This keeps the Bluepill firmware inside its 64 KB flash.
 - Code must comply with the project `.clang-format` file. Format changed/new C++ files with
   `clang-format -i <file>` (ColumnLimit 120, 2-space indent) before considering a change done.
 - Helper code lives in headers as `static` functions; public-ish helpers use Doxygen `@brief`/`@param` comments.
+- Never use `printf`/`sprintf`/`snprintf`/`sscanf` in the sketch or helper headers: they drag the whole libc formatter
+  (and on STM32 its float machinery) into flash. The Bluepill firmware runs at ~99% of the 64 KB - keep string
+  literals concise. Check with `grep -rn "printf" *.h *.ino`.
 - Objects are declared in the `.ino` and `extern`ed via `Globals.h`.
 - ESP32 vs STM32 behaviour is gated with `#if defined(ARDUINO_ARCH_...)`. Serial monitor: 115200 baud.
 - All human-facing text uses **Australian English spelling**: documentation, comments, README, serial console

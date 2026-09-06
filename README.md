@@ -85,36 +85,37 @@ The R id is sequential 1-9 and is independent of the CS route id (shown in the R
 
 | Command | Route | What the DUT console should print |
 | ------- | ----- | -------------------------------- |
-| `<R 1>` | CS Route 700 (Loco Drive) | `receivedLocoBroadcast()` and `receivedLocoUpdate()` for roster loco 2010 (speed 30 forward, F0 on/off) |
-| `<R 2>` | CS Route 701 (Local Loco Drive) | `receivedLocoBroadcast()` and `receivedLocoUpdate()` for non-roster loco 9999 (speed 25, F1 on/off) |
-| `<R 3>` | CS Route 702 (Turnout Ops) | `receivedTurnoutAction()` for turnouts 100, 101, 110, 102 (Thrown/Closed states) |
-| `<R 4>` | CS Route 703 (Turntable Ops) | `receivedTurntableAction()` for turntables 2 and 4 with position/moving changes |
-| `<R 5>` | CS Route 704 (Power Changes) | `receivedTrackPower()` and `receivedIndividualTrackPower()` for PowerOff/PowerOn on all tracks and track B |
-| `<R 6>` | CS Route 705 (Messages) | `receivedMessage()` and `receivedScreenUpdate()` for the two messages and screen update |
-| `<R 7>` | CS Route 706 (Consist Ops) | `receivedCSConsist()` for lead 2010 with members 2014 (rev) and 2016, then 2010 alone after BREAK_CONSIST |
-| `<R 8>` | CS Route 500 (Sensor Test) | `receivedJMRISensorBroadcast()` for sensors 6000, 6001, 6100, 6101, 6200, 6201, 6300 with Activated/Deactivated states matching the CS BROADCAST commands |
-| `<R 9>` | CS Route 708 (Delayed Activity) | `receivedTurnoutAction()` for turnouts 100 (thrown) and 101 (thrown then closed) over ~20s |
+| `<R 1>` | CS Route 700 (Loco Drive) | `<< startRoute 700` then `receivedLocoBroadcast()`/`receivedLocoUpdate()` for roster loco 2010 (speed 30F, F0 on/off) - confirm the matching `<t 2010 ...>`/`<F ...>` traffic on the CS console |
+| `<R 2>` | CS Route 701 (Local Loco Drive) | `receivedLocoBroadcast()` for non-roster loco 9999 (speed 25, F1 on/off) |
+| `<R 3>` | CS Route 702 (Turnout Ops) | `receivedTurnoutAction()` for turnouts 100, 101 (on), 110, 102 with Thrown/Closed states matching the CS THROW/CLOSE commands |
+| `<R 4>` | CS Route 703 (Turntable Ops) | `receivedTurntableAction()` for turntables 2 and 4 with position/moving changes matching the CS ROTATE/ROTATEU commands |
+| `<R 5>` | CS Route 704 (Power Changes) | `receivedTrackPower()` (x3) and `receivedIndividualTrackPower()` for track B; confirm power state changes on the CS console |
+| `<R 6>` | CS Route 705 (Messages) | `receivedMessage()` for the two messages and `receivedScreenUpdate()` for the screen update; the message text prints on the DUT console |
+| `<R 7>` | CS Route 706 (Consist Ops) | `receivedCSConsist()` once for lead 2010 + members (2014 rev, 2016); the later BREAK_CONSIST may not broadcast - check no consist remains on the CS console |
+| `<R 8>` | CS Route 500 (Sensor Test) | `receivedJMRISensorBroadcast()` for sensors 6000, 6001, 6100, 6101, 6200, 6201, 6300 with Activated/Deactivated matching the CS BROADCAST commands |
+| `<R 9>` | CS Route 708 (Delayed Activity) | `receivedTurnoutAction()` for turnout 100 (thrown) early and 101 (thrown then closed) later over ~20s; watch the CS console show the delayed PRINT markers |
 
 ### Local tests on the DUT (`<T id>`)
 
-| Command | Test | What to verify |
-| ------- | ---- | -------------- |
-| `<T 1>` | Version, Lists & Refresh | Server version plus roster/turnout/route/turntable list counts, then `refreshAllLists()` re-fetches every list |
-| `<T 2>` | Roster Loco Control | `receivedLocoBroadcast()` and `receivedLocoUpdate()` for roster loco 2010 while the DUT drives it (throttle 30F/60R/0, F0 on/off, `requestLocoUpdate()`) |
-| `<T 3>` | Local Loco Control | `receivedLocoBroadcast()` for local loco 9999 while the DUT drives it (throttle 25F/0, F1 on/off), then list cleanup after delete |
-| `<T 4>` | Turnout Control | `receivedTurnoutAction()` while the DUT throws/closes turnouts 100 and 102 and toggles turnout 101 |
-| `<T 5>` | Turntable Control | `receivedTurntableAction()` while the DUT rotates turntable 2 (positions 2, 4 then home) and turntable 4 (positions 1, 3) |
-| `<T 6>` | Track Power | `receivedTrackPower()` while the DUT powers all tracks on/off, the MAIN track off/on, track B off/on and `joinProg()` (PROG power is often not broadcast - check the CS console) |
-| `<T 7>` | Track Types | `receivedTrackType()` while the DUT cycles track A through MAIN/PROG/DC/DCX and restores MAIN |
-| `<T 8>` | Track Currents | `receivedTrackCurrentGauge()` and `receivedTrackCurrent()` responses for all tracks |
-| `<T 9>` | Momentum | No delegate callbacks expected - check the CS console for responses (algorithm, default and per-loco momentum, including accelerating/braking overloads) |
-| `<T 10>` | DCC Accessories | No delegate callbacks expected - check the CS console for accessory 10 and linear accessory 500 activation |
-| `<T 11>` | Consist Operations | `receivedCSConsist()` and loco broadcasts while the DUT builds a consist (lead 2010, members 2014 rev/2016), drives it, looks it up, removes a member, deletes it both ways, and clears the client-side list |
-| `<T 12>` | Automation Handoff | `receivedLocoBroadcast()` for loco 3001 (speed 15, F0 on/off) after `handOffLoco(3001, 301)` |
-| `<T 13>` | JMRI Sensor List | `receivedJMRISensorBroadcast()` for all 21 sensors after `requestJMRISensorList()` |
-| `<T 14>` | CV Programming (read/write) | `receivedReadLoco()`/`receivedWriteCV()`/`receivedValidateCV()`/`receivedValidateCVBit()`/`receivedWriteLoco()` while reading and writing CVs - self restoring (requires a loco on the PROG track, plus a layout loco for the on-main writes) |
-| `<T 15>` | Fast Clock | `receivedSetFastClock()` and `receivedFastClockTime()` after set/request |
-| `<T 16>` | Delayed Activity + Pause/Resume | `startRoute(708)` then `pauseRoutes()`/`resumeRoutes()`; verify the PRINT markers and pause/resume behaviour on the CS console |
-| `<T 17>` | Miscellaneous | `getLibraryVersion()`, `clearLocalLocos()`, `getNumberSupportedLocos()`, `emergencyStop()` (with power restore), debug output with version re-request, then `refreshAllLists()` |
+| Command | Test | Phases (`<< n` markers) and what to verify |
+| ------- | ---- | ------------------------------------------- |
+| `<T 1>` | Version, Lists & Refresh | `<< 1` reset lists + request version; `<< 2` refresh all lists. Expect version, then roster/turnout/route/turntable counts and the full lists to print; verify the version string on the CS console |
+| `<T 2>` | Roster Loco Control | `<< 1` roster loco 2010; `<< 2` throttle 30F `<t 2010 30 1>`; `<< 3` fn 0 on / `<< 4` fn 0 off; `<< 5` throttle 60R `<t 2010 60 0>`; `<< 6` stop `<t 2010 0 1>`; `<< 7` update `<t 2010>`. Expect `receivedLocoBroadcast()`/`receivedLocoUpdate()` after each |
+| `<T 3>` | Local Loco Control | `<< 1` new local loco 9999; `<< 2` throttle 25F `<t 9999 25 1>`; `<< 3` fn 1 on; `<< 4` stop; `<< 5` delete local loco. Expect `receivedLocoBroadcast()`/`receivedLocoUpdate()` after the throttle/function phases |
+| `<T 4>` | Turnout Control | `<< 1` turnout 100 throw; `<< 2` 100 close `<T 100 0>`; `<< 3`/`<< 4` toggle 101; `<< 5` turnout 102 throw. Expect `receivedTurnoutAction()` each time, states matching |
+| `<T 5>` | Turntable Control | `<< 1`-`<< 5` rotate turntable 2 (->2, ->4, ->home) and 4 (->1, ->3). Expect `receivedTurntableAction()` with matching positions (home = 0) |
+| `<T 6>` | Track Power | `<< 1`-`<< 3` power all on/off `<1>`/`<0>`; `<< 4` MAIN `<0/1 MAIN>`; `<< 5` PROG `<0/1 PROG>` (often no broadcast - check the PROG track); `<< 6` track B `<1/0 B>`; `<< 7` join PROG `<1 JOIN>` (may not broadcast). Expect `receivedTrackPower()`/`receivedIndividualTrackPower()` where broadcast |
+| `<T 7>` | Track Types | `<< 1`-`<< 5` cycle track A MAIN/PROG/DC 5/DCX 6/MAIN. Expect `receivedTrackType()` each time with matching type/address where applicable |
+| `<T 8>` | Track Currents | `<< 1` gauges `<jG>`; `<< 2` currents `<jI>`. Expect `receivedTrackCurrentGauge()` and `receivedTrackCurrent()` (8 reports of each) |
+| `<T 9>` | Momentum | No callback expected - check the CS console: `<< 1` algorithm -> Linear; `<< 2` default 10; `<< 3` default 10/5; `<< 4` loco 2010 20; `<< 5` 2010 10/5; `<< 6`/`<< 7` loco 2014 15 and 15/10 - confirm `<m>` responses |
+| `<T 10>` | DCC Accessories | No callback expected - check the CS console: `<< 1`/`<< 2` accessory 10 sub 1 on/off `<A 10 1 1/0>`; `<< 3`/`<< 4` linear accessory 500 on/off `<a 500 1/0>` |
+| `<T 11>` | Consist Operations | `<< 1` consist lead 2010; `<< 2` member 2014 rev; `<< 3` member 2016; `<< 4` consist throttle 20F; `<< 5`/`<< 6` consist fn 0 on/off; `<< 7` lookup by lead/member; `<< 8` consist stop; `<< 9` remove member 2016; `<< 10` delete consist 2010; `<< 11` replicated-functions consist lead 2030 (+member 2014); `<< 12` delete consist 2030; `<< 13` clear consist list; `<< 14` req consist list `<^>`. Expect `receivedCSConsist()` where the CS broadcasts - deletion may not broadcast |
+| `<T 12>` | Automation Handoff | `<< 1` handoff 3001 -> automation 301. Expect `receivedLocoBroadcast()` x4 for loco 3001 (speed 15, F0 on/off) - confirm the automation drives it on the CS console |
+| `<T 13>` | JMRI Sensor List | `<< 1` sensor list `<Q>`; `<< 2` expect 21 broadcasts. Expect `receivedJMRISensorBroadcast()` for all 21 sensors while the CS PRINTS them |
+| `<T 14>` | CV Programming (read/write) | Self-restoring: `<< 1` read addr `<R>`; `<< 2` write addr back; `<< 3` read cv 29; `<< 4` validate cv 29; `<< 5` cv bit 29:5 -> 1; `<< 6` validate bit 29:5; `<< 7` cv 29 on main 2010; `<< 8` cv bit 29:5 on main 2010; `<< 9` restore main cv 29; `<< 10` restore cv 29. Requires a loco on the PROG track (a failed read skips the write phases). WARNINGs print first - drives the PROG track and later writes CVs on the main |
+| `<T 15>` | Fast Clock | `<< 1` clock 07:00 x4 `<jT 420 4>`; `<< 2` clock time `<jC>`. Expect `receivedSetFastClock()` and `receivedFastClockTime()`; confirm the CS clock display |
+| `<T 16>` | Delayed Activity + Pause/Resume | `<< 1` start route 708; `<< 2` pause routes `< / PAUSE>`; `<< 3` resume routes `< / RESUME>`. Expect `receivedTurnoutAction()` for 100 (thrown) then 101/100/101 and `>> route 708 should be complete now` - watch pause/resume on the CS console |
+| `<T 17>` | Miscellaneous | `<< 1` clear local locos; `<< 2` supported locos `<#>`; `<< 3` emergency stop `< !>` (WARNING - powers off all tracks, restored at `<< 4` power all on); `<< 5` legacy `Consist` API loco 2015 (local speed + `<F 2015 1 1/0>` traffic); `<< 6` debug on + request version; `<< 7` debug off; `<< 8` clear all lists; `<< 9` refresh all lists; then re-fetched lists print |
+| `<T 18>` | List Maintenance | `<< 1`/`<< 2` clear+fetch roster; `<< 3`/`<< 4` turnouts; `<< 5`/`<< 6` routes; `<< 7`/`<< 8` turntables. Expect each `refresh*List()` to re-fetch that list (count prints after each fetch); verify the repopulated lists on the CS console |
 
 The DUT drives activity directly for the `<T id>` tests (throttles, turnouts, turntables, CV programming, consists etc.) so the CS console is expected to show matching output for those operations too. Routes are started by entering `<R id>` at the DUT serial console.

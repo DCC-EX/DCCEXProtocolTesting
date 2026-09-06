@@ -186,7 +186,7 @@ static String describeExpect(const Expect &expect) {
 static void addExpectation(ExpectType type, int a1, int a2 = EXPECT_ANY, int a3 = EXPECT_ANY, const char *str = nullptr,
                            int count = 1) {
   if (expectationCount >= maxExpectations) {
-    Serial.println("WARNING: Expectation list full, ignoring additional expectation");
+    Serial.println("WARNING: Expectation list full - ignoring it");
     expectationFailed = true;
     return;
   }
@@ -300,7 +300,7 @@ public:
       Serial.print("RESULT: ");
       Serial.println(missingCount == 0 ? F("PASS") : F("FAIL"));
     } else {
-      Serial.println("RESULT: no expectations set for this phase (observe the CS console)");
+      Serial.println("RESULT: no expectations set (observe the CS console)");
     }
     return missingCount == 0 && !expectationFailed;
   }
