@@ -37,7 +37,8 @@ Two test classes:
   dispatch `switch` mirroring the registry.
 - Route observation is driven by the `RouteTest.observeMs` window and the expectations set by the route test's body
 - `<C>` is a connect command, not a test: it never appears in the test registers, prints no TEST COMPLETE banner, and
-  the `myAutomation.h` reminder appears only in its output.
+  the `myAutomation.h` reminder appears only in its output. A successful `<C>` sets the global `csConnected` flag, which
+  gates the `<T>`/`<R>` tests - they are refused with an error until a connection has been established.
 
 ## ID rules
 

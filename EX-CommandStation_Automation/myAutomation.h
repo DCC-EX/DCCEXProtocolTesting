@@ -79,18 +79,6 @@ TURNOUTL(121, 500, "Linear Turnout")
 // SERVO_TURNOUT(130, 130, 700, 1200, Slow, "Servo Turnout")
 
 /* --------------------------------------------------------------------------
- * Basic routes and automations
- * ------------------------------------------------------------------------ */
-
-ROUTE(200, "Route 200")
-PRINT("Route 200 activated")
-DONE
-
-    AUTOMATION(300, "Automation 300") PRINT("Automation 300 activated") DONE
-
-    ROUTE(400, "Route 400") PRINT("Route 400 activated") DONE
-
-/* --------------------------------------------------------------------------
  * ROUTE 500 - JMRI sensor broadcast test
  * --------------------------------------------------------------------------
  * Start this route by entering <R 500> on the DUT serial console to trigger JMRI sensor broadcasts. The BROADCAST()
@@ -240,7 +228,7 @@ PRINT("Route 706 complete")
 DONE
 
 /* ROUTE 708 - Delayed Activity
- * A long running route with delays. Started by entering <R 708>, or use the <T 708> local test to verify
+ * A long running route with delays. Started by entering <R 708>, or use the <T 16> local test to verify
  * startRoute(), pauseRoutes(), and resumeRoutes().
  * When paused, the route should stop at the current DELAY and PRINT marker on the CS console until resumed.
  */
@@ -258,7 +246,7 @@ PRINT("Route 708 complete")
 DONE
 
 /* --------------------------------------------------------------------------
- * AUTOMATION 301 - used for the <T 301> local test which sends handOffLoco()
+ * AUTOMATION 301 - used for the <T 12> local test which sends handOffLoco()
  * --------------------------------------------------------------------------
  * The DUT sends handOffLoco(3001, 301) which starts this automation with loco 3001. It drives loco 3001 forward,
  * toggling function 0, and the DUT receives the resulting <l 3001 ...> broadcasts.
@@ -288,6 +276,7 @@ DONE
  * Route 704 (Power Changes) -> receivedTrackPower() and receivedIndividualTrackPower() for PowerOff/PowerOn
  * Route 705 (Messages)      -> receivedMessage() and receivedScreenUpdate() for the two messages and screen update
  * Route 706 (Consist Ops)   -> receivedCSConsist() for lead 2010 with members 2014 (rev) and 2016, then 2010 alone
- * Route 708 (Delayed Act.)  -> no DUT output expected, verify PRINT markers and pause/resume behaviour on CS console
+ * Route 708 (Delayed Act.)  -> receivedTurnoutAction() for turnouts 100 (thrown) and 101 (thrown then closed);
+ *                              use <T 16> to also verify pauseRoutes()/resumeRoutes() on the CS console
  * Automation 301            -> receivedLocoBroadcast() for loco 3001 (speed 15, F0 on/off) after handOffLoco()
  */

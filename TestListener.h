@@ -247,6 +247,10 @@ static void reportExpectation(ExpectResult result) {
  */
 class CSListener : public DCCEXProtocolDelegate {
 public:
+  // Captured values from the CV programming test (T14) so it can self-restore writes
+  int lastReadLocoAddress = -1; //<! Last address read from the PROG track
+  int lastWriteCVValue = -1;    //<! Last CV value read/written (from the <r cv value> response)
+
   /**
    * @brief Clear all active expectations before a test starts
    */
@@ -576,6 +580,7 @@ public:
   void receivedReadLoco(int address) override {
     Serial.print("Received Read Loco: address=");
     Serial.println(address);
+    lastReadLocoAddress = address;
     reportExpectation(checkExpectation(READ_LOCO, address, 0, 0));
     Serial.println();
   }
@@ -632,6 +637,7 @@ public:
     Serial.print(cv);
     Serial.print(" value=");
     Serial.println(value);
+    lastWriteCVValue = value;
     reportExpectation(checkExpectation(WRITE_CV, cv, value, 0));
     Serial.println();
   }

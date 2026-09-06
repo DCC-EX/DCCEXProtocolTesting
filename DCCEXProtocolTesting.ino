@@ -63,6 +63,7 @@ Global objects
 DCCEXProtocol csClient;      // Client connection to the EX-CommandStation using DCCEXProtocol
 CSListener csListener;       // Listener for EX-CommandStation broadcasts/responses using DCCEXProtocolDelegate
 unsigned long lastAlive = 0; // Last time alive was displayed
+bool csConnected = false;    // Set true when <C> has successfully connected to the command station
 #if defined(ARDUINO_ARCH_ESP32)
 WiFiClient wifiClient;
 #endif

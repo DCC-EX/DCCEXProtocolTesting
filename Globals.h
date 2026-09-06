@@ -16,6 +16,7 @@ class CSListener; // Defined in TestListener.h
 extern DCCEXProtocol csClient;  // Client connection to the EX-CommandStation using DCCEXProtocol
 extern CSListener csListener;   // Listener for EX-CommandStation broadcasts/responses using DCCEXProtocolDelegate
 extern unsigned long lastAlive; // Last time alive was displayed
+extern bool csConnected;        // Set true when <C> has successfully connected to the command station
 
 #if defined(ARDUINO_ARCH_ESP32)
 #include <WiFi.h>
