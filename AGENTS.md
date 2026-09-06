@@ -19,7 +19,9 @@ EX-CommandStation, with a human operator watching both consoles.
 ## Test strategy (invariant)
 
 Every public `DCCEXProtocol` method and every `DCCEXProtocolDelegate` callback **must** be exercised by some test.
-When the library adds methods/callbacks, that is a test gap - add coverage; never silently skip it.
+When the library adds methods/callbacks, that is a test gap - add coverage; never silently skip it. Run the coverage
+audit after any library or sketch change to verify (see README.md `## Developer: API coverage audit`) - it exits
+non-zero on an unexpected gap.
 
 One exception: `DCCEXProtocol::disconnect()` is currently a no-op stub in the library, so it is deliberately not
 exercised. The deprecated `Consist *` overloads of `setThrottle()`, `functionOn()`, `functionOff()` and
@@ -114,14 +116,22 @@ side, the corresponding tests must be updated in the same change.
 
 ## Verification gate
 
-A change is not done until it compiles for **both** environments:
+A change is not done until it compiles for **both** environments and the API coverage audit passes:
 
 - `pio run -e bluepill_f103c8`
 - `pio run -e wemos_d1_mini32`
+- `.venv/bin/python tools/check_coverage.py` (exits non-zero on any unexpected gap)
 
 The library is linked via `symlink:///home/pete/code/DCCEXProtocol` in `platformio.ini` (adjust the path if your
 local clone lives elsewhere). `myConfig.h`/`myWiFi.h` must never be committed. Hardware behaviour must ultimately be
 verified by the operator on the live rig.
+
+## Developer tooling
+
+- Python developer tools live in `tools/`. Any requirements are installed **only** into the project virtual
+  environment (`.venv`/), never into the system interpreter: `python3 -m venv .venv` then
+  `.venv/bin/pip install -r tools/requirements.txt`. Always invoke tools via `.venv/bin/python tools/...`.
+- `.venv/` is gitignored; `tools/requirements.txt` is the manifest for the environment.
 
 ## Trust warning
 

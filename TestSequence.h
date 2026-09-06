@@ -255,6 +255,16 @@ static void testVersionLists() {
   printTurnouts();
   printRoutes();
   printTurntables();
+  phase(3);
+  Serial.println("received flags");
+  Serial.print("  roster=");
+  Serial.println(csClient.receivedRoster() ? "true" : "false");
+  Serial.print("  turnouts=");
+  Serial.println(csClient.receivedTurnoutList() ? "true" : "false");
+  Serial.print("  routes=");
+  Serial.println(csClient.receivedRouteList() ? "true" : "false");
+  Serial.print("  turntables=");
+  Serial.println(csClient.receivedTurntableList() ? "true" : "false");
   csListener.printExpectationResult();
 }
 
@@ -951,6 +961,11 @@ static void testMiscellaneous() {
   printTurntables();
   Serial.print("last response time: ");
   Serial.println(csClient.getLastServerResponseTime());
+  phase(10);
+  Serial.println("sendCommand <J C>");
+  csListener.expectFastClockTime(EXPECT_ANY);
+  csClient.sendCommand("J C");
+  waitForExpectations();
   csListener.printExpectationResult();
 }
 

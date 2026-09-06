@@ -25,3 +25,6 @@
 # User config
 myConfig.h
 myWiFi.h
+
+# Python virtual environment
+.venv/

@@ -99,7 +99,7 @@ The R id is sequential 1-9 and is independent of the CS route id (shown in the R
 
 | Command | Test | Phases (`<< n` markers) and what to verify |
 | ------- | ---- | ------------------------------------------- |
-| `<T 1>` | Version, Lists & Refresh | `<< 1` reset lists + request version; `<< 2` refresh all lists. Expect version, then roster/turnout/route/turntable counts and the full lists to print; verify the version string on the CS console |
+| `<T 1>` | Version, Lists & Refresh | `<< 1` reset lists + request version; `<< 2` refresh all lists; `<< 3` received flags. Expect version, then roster/turnout/route/turntable counts, the full lists and the four `received*List()` flags to print; verify the version string on the CS console |
 | `<T 2>` | Roster Loco Control | `<< 1` roster loco 2010; `<< 2` throttle 30F `<t 2010 30 1>`; `<< 3` fn 0 on / `<< 4` fn 0 off; `<< 5` throttle 60R `<t 2010 60 0>`; `<< 6` stop `<t 2010 0 1>`; `<< 7` update `<t 2010>`. Expect `receivedLocoBroadcast()`/`receivedLocoUpdate()` after each |
 | `<T 3>` | Local Loco Control | `<< 1` new local loco 9999; `<< 2` throttle 25F `<t 9999 25 1>`; `<< 3` fn 1 on; `<< 4` stop; `<< 5` delete local loco. Expect `receivedLocoBroadcast()`/`receivedLocoUpdate()` after the throttle/function phases |
 | `<T 4>` | Turnout Control | `<< 1` turnout 100 throw; `<< 2` 100 close `<T 100 0>`; `<< 3`/`<< 4` toggle 101; `<< 5` turnout 102 throw. Expect `receivedTurnoutAction()` each time, states matching |
@@ -115,7 +115,31 @@ The R id is sequential 1-9 and is independent of the CS route id (shown in the R
 | `<T 14>` | CV Programming (read/write) | Self-restoring: `<< 1` read addr `<R>`; `<< 2` write addr back; `<< 3` read cv 29; `<< 4` validate cv 29; `<< 5` cv bit 29:5 -> 1; `<< 6` validate bit 29:5; `<< 7` cv 29 on main 2010; `<< 8` cv bit 29:5 on main 2010; `<< 9` restore main cv 29; `<< 10` restore cv 29. Requires a loco on the PROG track (a failed read skips the write phases). WARNINGs print first - drives the PROG track and later writes CVs on the main |
 | `<T 15>` | Fast Clock | `<< 1` clock 07:00 x4 `<jT 420 4>`; `<< 2` clock time `<jC>`. Expect `receivedSetFastClock()` and `receivedFastClockTime()`; confirm the CS clock display |
 | `<T 16>` | Delayed Activity + Pause/Resume | `<< 1` start route 708; `<< 2` pause routes `< / PAUSE>`; `<< 3` resume routes `< / RESUME>`. Expect `receivedTurnoutAction()` for 100 (thrown) then 101/100/101 and `>> route 708 should be complete now` - watch pause/resume on the CS console |
-| `<T 17>` | Miscellaneous | `<< 1` clear local locos; `<< 2` supported locos `<#>`; `<< 3` emergency stop `< !>` (WARNING - powers off all tracks, restored at `<< 4` power all on); `<< 5` legacy `Consist` API loco 2015 (local speed + `<F 2015 1 1/0>` traffic); `<< 6` debug on + request version; `<< 7` debug off; `<< 8` clear all lists; `<< 9` refresh all lists; then re-fetched lists print |
+| `<T 17>` | Miscellaneous | `<< 1` clear local locos; `<< 2` supported locos `<#>`; `<< 3` emergency stop `< !>` (WARNING - powers off all tracks, restored at `<< 4` power all on); `<< 5` legacy `Consist` API loco 2015 (local speed + `<F 2015 1 1/0>` traffic); `<< 6` debug on + request version; `<< 7` debug off; `<< 8` clear all lists; `<< 9` refresh all lists (re-fetched lists print); `<< 10` `sendCommand("J C")` - raw command via the public API, expect the fast clock time response |
 | `<T 18>` | List Maintenance | `<< 1`/`<< 2` clear+fetch roster; `<< 3`/`<< 4` turnouts; `<< 5`/`<< 6` routes; `<< 7`/`<< 8` turntables. Expect each `refresh*List()` to re-fetch that list (count prints after each fetch); verify the repopulated lists on the CS console |
 
 The DUT drives activity directly for the `<T id>` tests (throttles, turnouts, turntables, CV programming, consists etc.) so the CS console is expected to show matching output for those operations too. Routes are started by entering `<R id>` at the DUT serial console.
+
+## Developer: API coverage audit
+
+The project invariant (see AGENTS.md) is that **every public `DCCEXProtocol` method and every
+`DCCEXProtocolDelegate` callback is exercised by some test**. `tools/check_coverage.py` audits this against the live
+library header and the sketch sources, so it catches the moment the library grows a method or callback that no test
+covers.
+
+Run it (always from the Python virtual environment - the tool itself is standard-library only, but the venv keeps
+every developer on a known interpreter):
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r tools/requirements.txt
+.venv/bin/python tools/check_coverage.py
+```
+
+- Pass `--lib /path/to/DCCEXProtocol` if the library is not a sibling of this repository (the default matches the
+  `symlink:///home/pete/code/DCCEXProtocol` used by `platformio.ini`).
+- Output is one row per symbol: `covered`, `skipped` (documented exception: `disconnect()`, a no-op stub) or
+  `*** GAP ***`. The exit code is non-zero when an unexpected gap is found.
+- The sketch, the headers and the library are all one translation unit, and comment text is stripped before scanning,
+  so documentation mentions never count as coverage. Public methods count only when called through an object
+  (`csClient.method(...)`); delegate callbacks count when their `expect...()` counterpart is used by a test.

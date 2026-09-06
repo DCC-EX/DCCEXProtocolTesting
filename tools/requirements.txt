@@ -1,0 +1,3 @@
+# DCCEXProtocolTesting developer tool requirements.
+# check_coverage.py uses only the Python 3 standard library, so this file is empty;
+# it exists so the tool always runs in a dedicated virtual environment (.venv).
