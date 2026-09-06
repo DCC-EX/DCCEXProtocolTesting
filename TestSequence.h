@@ -209,11 +209,12 @@ static void waitForAllLists(unsigned long windowMs = CONNECT_TIMEOUT) {
 static void testVersionLists() {
   testBanner("Version, Lists & Refresh");
   csListener.clearExpectations();
-  Serial.println("Requesting the server version (<s>)");
+  // First clear the client lists (refreshAllLists()) so the later getLists() cascade genuinely re-requests them
+  // over the wire. A getLists() call is a no-op while receivedLists() is already true (see waitForAllLists()).
+  Serial.println("Reset the client lists, then request the server version (<s>) and all object lists");
+  csClient.refreshAllLists();
   csClient.requestServerVersion();
   csListener.expectServerVersion();
-  waitForExpectations(CONNECT_TIMEOUT);
-  Serial.println("Requesting all object lists (getLists())");
   csListener.expectRosterList();
   csListener.expectTurnoutList();
   csListener.expectRouteList();
