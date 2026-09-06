@@ -169,9 +169,9 @@ static bool connectToCommandStation() {
   csConnected = true;
   printConnectionSummary();
   Serial.println("verify myAutomation.h objects:");
-  Serial.println("  - roster 2004-2066 (15 entries)");
-  Serial.println("  - turnouts 100-105, 110, 120, 121 (105 hidden)");
-  Serial.println("  - turntables 2/3/4 and 21 JMRI sensors (6000-6300)");
+  Serial.println("  - roster 2010/2014/2016/2030");
+  Serial.println("  - turnouts 100/101/102/110 and 121 (linear acc 500)");
+  Serial.println("  - turntables 2/4 and 21 JMRI sensors (6000-6300)");
   Serial.println("  - routes 500, 700-706, 708 and AUTOMATION 301");
   return true;
 }
@@ -331,7 +331,7 @@ static void testRosterLocoControl() {
 
 // T 3 - Local (non-roster) loco control
 static void testLocalLocoControl() {
-  testBanner("Local (non-roster) Loco Control");
+  testBanner("Local Loco Control");
   csListener.clearExpectations();
   phase(1);
   Serial.print("new loco ");

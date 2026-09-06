@@ -49,11 +49,11 @@ Copy `myAutomation.h` into your EX-CommandStation build, recompile and flash the
 
 It creates:
 
-- 15 roster entries (2004-2066)
+- 4 roster entries (2010, 2014, 2016, 2030)
 - 21 JMRI sensors (6000-6300)
-- 3 DCC turntables (2 with 6 positions, 3 home only, 4 with 3 positions)
-- 10 turnouts (including a HIDDEN one, a virtual one and a legacy DCC one - see the file for details)
-- Routes 500, 700-708 and automation 301 (all created by tests; there are no basic demo routes)
+- 2 DCC turntables (2 with 6 positions, 4 with 3 positions)
+- 5 turnouts (100/101/102, virtual 110 and linear 121 at accessory index 500)
+- Routes 500, 700-706, 708 and automation 301 (all created by tests; there are no basic demo routes):
 
 ## Running the test suite
 

@@ -23,22 +23,12 @@
  * Dummy objects created to exercise the library list retrieval
  * ------------------------------------------------------------------------ */
 
-// Roster entries (15 total) - used to verify roster list retrieval and loco control
-ROSTER(2004, "QR 2004", "Lights/*Horn/*Bell/*Whistle/*Brakes/Idiots/Crap Programming")
-ROSTER(2006, "QR 2006", "Lights/*Horn")
+// Roster entries (4 total) - only the locos the tests actually drive/consist
+// 2010 and 2014 are found via findLocoInRoster(); 2016 and 2030 are consist members/lead
 ROSTER(2010, "QR 2010", "Lights/*Horn")
 ROSTER(2014, "QR 2014", "Lights/*Horn")
 ROSTER(2016, "QR 2016", "Lights/*Horn")
-ROSTER(2020, "QR 2020", "Lights/*Horn")
-ROSTER(2024, "QR 2024", "Lights/*Horn")
-ROSTER(2026, "QR 2026", "Lights/*Horn")
 ROSTER(2030, "QR 2030", "Lights/*Horn")
-ROSTER(2040, "QR 2040", "Lights/*Horn/Bell")
-ROSTER(2046, "QR 2046", "Lights/*Horn/Bell/Whistle")
-ROSTER(2050, "QR 2050", "Lights")
-ROSTER(2056, "QR 2056", "Lights/*Horn")
-ROSTER(2060, "QR 2060", "Lights/*Horn/Bell/Whistle/*Brakes")
-ROSTER(2066, "QR 2066", "Lights")
 
 // JMRI sensors (21 total) - used to verify JMRI sensor broadcasts
 // 6000-6004 with internal pullup, 6100-6104 without pullup, 6200-6209, and a single 6300
@@ -48,7 +38,7 @@ JMRI_SENSOR(6200, 10)
 JMRI_SENSOR(6300, 1)
 
 // DCC turntables - used to verify turntable list retrieval and rotateTurntable()
-// Turntable 2 has 6 positions, turntable 3 is home only (0 defined positions), turntable 4 has 3 positions
+// Turntable 2 has 6 positions, turntable 4 has 3 positions
 DCC_TURNTABLE(2, 1800, "My DCC Turntable")
 TT_ADDPOSITION(2, 1, 900, 800, "Stall 1")
 TT_ADDPOSITION(2, 2, 1200, 900, "Stall 2")
@@ -57,26 +47,18 @@ TT_ADDPOSITION(2, 4, 2700, 2600, "Rev stall 1")
 TT_ADDPOSITION(2, 5, 3000, 2700, "Layout")
 TT_ADDPOSITION(2, 6, 3300, 2800, "Rev stall 3")
 
-DCC_TURNTABLE(3, 1800, "Home Only Turntable")
-
 DCC_TURNTABLE(4, 1800, "Three Position Turntable")
 TT_ADDPOSITION(4, 1, 900, 800, "Stall A")
 TT_ADDPOSITION(4, 2, 1500, 1200, "Stall B")
 TT_ADDPOSITION(4, 3, 2700, 2400, "Stall C")
 
-// Turnouts (10 total) - used to verify turnout list retrieval and throw/close/toggle
-// NOTE: Turnout 105 uses the HIDDEN keyword so it will NOT appear in the <jT> turnout list
-// Turnout 130 requires a servo on vpin 130, comment out if you don't have one attached
+// Turnouts (5 total) - used to verify turnout list retrieval and throw/close/toggle
+// Turnout 121 is a linear turnout at accessory index 500, targeted by activateLinearAccessory(500)
 PIN_TURNOUT(100, 100, "Turnout 100")
 PIN_TURNOUT(101, 101, "Turnout 101")
 PIN_TURNOUT(102, 102)
-PIN_TURNOUT(103, 103, "Turnout 103")
-PIN_TURNOUT(104, 104)
-PIN_TURNOUT(105, 105, HIDDEN)
 VIRTUAL_TURNOUT(110, "Virtual Turnout")
-TURNOUT(120, 10, 1, "Legacy Turnout")
 TURNOUTL(121, 500, "Linear Turnout")
-// SERVO_TURNOUT(130, 130, 700, 1200, Slow, "Servo Turnout")
 
 /* --------------------------------------------------------------------------
  * ROUTE 500 - JMRI sensor broadcast test

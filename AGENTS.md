@@ -48,7 +48,7 @@ Two test classes:
 
 ## ID rules
 
-- T and R ids are **sequential** (`<T 1..17>`, `<R 1..9>`) and are **independent of** the CS route ids. The mapping
+- T and R ids are **sequential** (`<T 1..18>`, `<R 1..9>`) and are **independent of** the CS route ids. The mapping
   between an R id and its underlying CS route lives only in the `RouteTest.csRouteId` field.
 - Never renumber without updating: the registry, the README matrices, and the `myAutomation.h` route comments.
 
@@ -83,8 +83,8 @@ Values that cannot be known up front use `EXPECT_ANY` (e.g. track currents, CS v
 
 The CS sketch may only create:
 
-- the objects the tests rely on: roster (2004-2066), JMRI sensors (6000-6300), turnouts 100-105/110/120/121,
-  turntables 2/3/4;
+- the objects the tests rely on: roster (2010/2014/2016/2030), JMRI sensors (6000-6300, the 21-count is load-bearing
+  for `<R 500>`), turnouts 100/101/102/110 and 121 (linear accessory index 500), turntables 2/4;
 - the routes that are `<R id>` targets (CS routes 500, 700-706, 708) and AUTOMATION 301 (used by the handoff test).
 
 No "basic" demo routes/automations (200, 300, 400). If an object shared with a test is renamed/removed on the CS
